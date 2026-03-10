@@ -1,8 +1,8 @@
-# Development Roadmap
+# Geliştirme Yol Haritası
 
-## 7.1 Project Timeline
+## Proje Zaman Çizelgesi
 
-Internview 14 haftalık yoğunlaştırılmış bir geliştirme takvimi ile hayata geçirilmektedir. Plan, altyapı hazırlığından production deployment'a kadar sistematik bir ilerleme hedefler.
+Internview, 14 haftalık yoğunlaştırılmış bir geliştirme takvimi ile hayata geçirilmektedir. Plan, altyapı hazırlığından canlı ortama geçişe kadar 6 iş paketi altında sistematik bir ilerleme hedefler.
 
 ```mermaid
 gantt
@@ -10,111 +10,71 @@ gantt
     dateFormat YYYY-MM-DD
     axisFormat %W. Hafta
 
-    section Foundation
-    Proje Kurulumu & Dokümantasyon :done, w1, 2026-03-03, 7d
+    section İP-1: Temel Altyapı
+    Proje Kurulumu & Dokümantasyon :done, w1, 2026-01-05, 7d
     Docker Altyapısı :w2, after w1, 7d
-    milestone Foundation Complete :m1, after w2, 0d
+    milestone İP-1 Tamamlandı :m1, after w2, 0d
 
-    section Core Backend Services
+    section İP-2: Temel Backend Servisleri
     API Gateway :w3, after w2, 7d
     Auth Service :w4, after w3, 7d
     User Service :w5, after w4, 7d
     Booking Service :w6, after w5, 7d
-    milestone Core Backend Ready :m2, after w6, 0d
+    milestone İP-2 Tamamlandı :m2, after w6, 0d
 
-    section Event Driven Architecture
+    section İP-3: Olay Tabanlı Mimari
     Kafka Event Sistemi :w7, after w6, 7d
-    milestone Event System Ready :m3, after w7, 0d
+    milestone İP-3 Tamamlandı :m3, after w7, 0d
 
-    section Real-Time Video Infrastructure
+    section İP-4: Gerçek Zamanlı Video Altyapısı
     WebRTC Signaling Server :w8, after w7, 7d
     TURN / STUN Kurulumu :w9, after w8, 7d
     Media Server (Mediasoup) :w10, after w9, 7d
-    milestone Video Infrastructure Ready :m4, after w10, 0d
+    milestone İP-4 Tamamlandı :m4, after w10, 0d
 
-    section AI Analysis Pipeline
+    section İP-5: Yapay Zeka Konuşma Analizi
     AI Speech Pipeline :w11, after w10, 7d
     Konuşma Analizi :w12, after w11, 7d
-    milestone AI Analysis Ready :m5, after w12, 0d
+    milestone İP-5 Tamamlandı :m5, after w12, 0d
 
-    section Frontend Development
+    section İP-6: Önyüz & Canlıya Alma
     Web & Mobil Uygulama :w13, after w12, 7d
-
-    section Deployment
-    Cloud Deployment :w14, after w13, 7d
-    milestone Production Release :m6, after w14, 0d
+    Bulut Ortamına Dağıtım :w14, after w13, 7d
+    milestone İP-6 Tamamlandı :m6, after w14, 0d
 ```
 
 ---
 
-## 7.2 Milestones
-
-### Milestone 1 — Foundation & Infrastructure (Hafta 1–2)
-
-| Hafta | Hedef | Deliverables |
-|-------|-------|-------------|
-| **Hafta 1** | Proje Kurulumu & Dokümantasyon | Skeleton Spring Boot backend, Next.js web, Flutter mobile projeleri. Monorepo klasör iskeleti. Tüm teknik dokümanlar (system architecture, tech stack, domain model, API design, event architecture, WebRTC flow, roadmap). |
-| **Hafta 2** | Docker Altyapısı | PostgreSQL, Redis, Apache Kafka (KRaft), HashiCorp Consul Docker Compose yapılandırması. Backend entegrasyon ping testi. |
-
-### Milestone 2 — Core Backend Services (Hafta 3–6)
-
-| Hafta | Hedef | Deliverables |
-|-------|-------|-------------|
-| **Hafta 3** | API Gateway | Spring Cloud Gateway kurulumu, route yapılandırması, loglama, basic auth filter. |
-| **Hafta 4** | Auth Service | Spring Security + JWT entegrasyonu. Register, login, token refresh endpoint'leri. |
-| **Hafta 5** | User Service | Aday/uzman profil CRUD, yetenek ve sektör bazlı filtreleme, pagination. |
-| **Hafta 6** | Booking Service | Availability slot yönetimi, randevu oluşturma. **Redis distributed lock** ile çifte rezervasyon engelleme. |
-
-### Milestone 3 — Event-Driven Communication (Hafta 7)
-
-| Hafta | Hedef | Deliverables |
-|-------|-------|-------------|
-| **Hafta 7** | Kafka Event Sistemi | Spring Kafka Producer/Consumer entegrasyonu. BookingCreatedEvent ve InterviewCompletedEvent topic'lerinin kurulumu. |
-
-### Milestone 4 — Real-Time Video Infrastructure (Hafta 8–10)
-
-| Hafta | Hedef | Deliverables |
-|-------|-------|-------------|
-| **Hafta 8** | WebRTC Signaling Server | Spring WebSocket sunucusu, Redis ile oda state yönetimi, SDP Offer/Answer ve ICE Candidate taşıma. |
-| **Hafta 9** | TURN/STUN Kurulumu | Coturn container deployment, mobil ağ simülasyonlarında NAT traversal testleri. |
-| **Hafta 10** | Media Server | Mediasoup (SFU) kurulumu, video stream yönlendirme, server-side recording ve S3 upload. |
-
-### Milestone 5 — AI Speech Analysis Pipeline (Hafta 11–12)
-
-| Hafta | Hedef | Deliverables |
-|-------|-------|-------------|
-| **Hafta 11** | AI Speech Pipeline | Python + OpenAI Whisper modülü, S3'ten video alma, audio extraction, Speech-to-Text dönüşümü. |
-| **Hafta 12** | Konuşma Analizi | WPM, duraksama oranı, dolgu kelime tespiti, JSONB formatında PostgreSQL'e kayıt. |
-
-### Milestone 6 — Frontend & Production Deployment (Hafta 13–14)
-
-| Hafta | Hedef | Deliverables |
-|-------|-------|-------------|
-| **Hafta 13** | Web & Mobil Uygulama | Next.js mülakat odası ekranı, uzman arama/listeleme, randevu takvimi. Flutter mülakat odası, WebRTC entegrasyonu. Login sistemi tam bağlantı. |
-| **Hafta 14** | Cloud Deployment | GitHub Actions CI/CD pipeline, AWS EC2 deployment, Docker image build, VPC izolasyonu, production ortamında canlı test. |
+## İş Paketleri
 
 ---
 
-## 7.3 Weekly Tasks
+### İP-1: Temel Altyapı ve Proje Kurulumu
 
-### Hafta 1 — Proje Kurulumu ve Dokümantasyon
+| | |
+|---|---|
+| **Süre** | Hafta 1 – 2 (2 hafta) |
+| **Amaç** | Projenin iskelet yapısının oluşturulması, teknik dokümantasyonun tamamlanması ve geliştirme ortamının konteynerize edilmesi. |
+| **Çıktılar** | Skeleton Spring Boot backend, Next.js web, Flutter mobile projeleri. Monorepo klasör iskeleti. Tüm teknik dokümanlar. Docker Compose ile PostgreSQL, Redis, Kafka (KRaft), Consul altyapısı. |
+
+#### Hafta 1 — Proje Kurulumu ve Dokümantasyon
 
 **Amaç:** Design-first yaklaşım ile mimari temel kurulumu
 
-- [x] Spring Boot backend skeleton projesi oluşturma
-- [x] Next.js web frontend skeleton projesi oluşturma
-- [x] Flutter mobile skeleton projesi oluşturma
-- [x] Monorepo klasör yapısının düzenlenmesi
-- [x] System Architecture dokümanı
-- [x] Tech Stack dokümanı
-- [x] Domain Model dokümanı
-- [x] API Design dokümanı
-- [x] Event Architecture dokümanı
-- [x] WebRTC Flow dokümanı
-- [x] Development Roadmap dokümanı
-- [x] README.md güncellenmesi
+- [X] Spring Boot backend skeleton projesi oluşturma
+- [X] Next.js web frontend skeleton projesi oluşturma
+- [X] Flutter mobile skeleton projesi oluşturma
+- [X] Monorepo klasör yapısının düzenlenmesi
+- [X] System Architecture dokümanı
+- [X] Tech Stack dokümanı
+- [X] Domain Model dokümanı
+- [X] API Design dokümanı
+- [X] Event Architecture dokümanı
+- [X] WebRTC Flow dokümanı
+- [X] Development Roadmap dokümanı
+- [X] README.md güncellenmesi
 
-### Hafta 2 — Docker Altyapısı
+#### Hafta 2 — Docker Altyapısı
 
 **Amaç:** Geliştirme ortamının konteynerize edilmesi
 
@@ -126,7 +86,17 @@ gantt
 - [ ] Backend ↔ dış bileşen entegrasyon ping testi
 - [ ] `.env` dosyaları ve environment variable yönetimi
 
-### Hafta 3 — API Gateway
+---
+
+### İP-2: Temel Backend Servisleri
+
+| | |
+|---|---|
+| **Süre** | Hafta 3 – 6 (4 hafta) |
+| **Amaç** | API Gateway, kimlik doğrulama, kullanıcı yönetimi ve randevu sisteminin geliştirilmesi. |
+| **Çıktılar** | Spring Cloud Gateway, JWT tabanlı Auth Service, kullanıcı profil CRUD, Redis distributed lock ile çifte rezervasyona dayanıklı Booking Service. |
+
+#### Hafta 3 — API Gateway
 
 - [ ] Spring Cloud Gateway projesi oluşturma
 - [ ] Route tanımlamaları (auth, user, booking, interview)
@@ -134,7 +104,7 @@ gantt
 - [ ] Basic authentication filter
 - [ ] Rate limiting yapılandırması
 
-### Hafta 4 — Auth Service
+#### Hafta 4 — Auth Service
 
 - [ ] Spring Security yapılandırması
 - [ ] JWT token üretimi ve doğrulama
@@ -143,7 +113,7 @@ gantt
 - [ ] `POST /auth/refresh` endpoint
 - [ ] Rol bazlı erişim kontrolü (RBAC)
 
-### Hafta 5 — User Service
+#### Hafta 5 — User Service
 
 - [ ] User entity ve repository katmanı
 - [ ] ExpertProfile, Skill, Industry entity'leri
@@ -152,7 +122,7 @@ gantt
 - [ ] `PUT /users/profile` — profil güncelleme
 - [ ] Unit testler
 
-### Hafta 6 — Booking Service
+#### Hafta 6 — Booking Service
 
 - [ ] AvailabilitySlot CRUD operasyonları
 - [ ] `POST /bookings` — randevu oluşturma
@@ -160,7 +130,17 @@ gantt
 - [ ] Çifte rezervasyon senaryosu testleri
 - [ ] Booking durum yönetimi (state machine)
 
-### Hafta 7 — Kafka Event Sistemi
+---
+
+### İP-3: Olay Tabanlı Mimari
+
+| | |
+|---|---|
+| **Süre** | Hafta 7 (1 hafta) |
+| **Amaç** | Servisler arası asenkron iletişim altyapısının kurulması. |
+| **Çıktılar** | Spring Kafka Producer/Consumer entegrasyonu, BookingCreatedEvent ve InterviewCompletedEvent topic'leri. |
+
+#### Hafta 7 — Kafka Event Sistemi
 
 - [ ] Spring Kafka Producer yapılandırması
 - [ ] Spring Kafka Consumer yapılandırması
@@ -168,7 +148,17 @@ gantt
 - [ ] `InterviewCompletedEvent` topic ve handler
 - [ ] Event serialization/deserialization (JSON)
 
-### Hafta 8 — WebRTC Signaling Server
+---
+
+### İP-4: Gerçek Zamanlı Video Altyapısı
+
+| | |
+|---|---|
+| **Süre** | Hafta 8 – 10 (3 hafta) |
+| **Amaç** | WebRTC tabanlı gerçek zamanlı görüntülü görüşme altyapısının kurulması; sinyal sunucusu, NAT traversal ve medya sunucusu bileşenlerinin geliştirilmesi. |
+| **Çıktılar** | Spring WebSocket signaling server, Coturn TURN/STUN yapılandırması, Mediasoup SFU ile video yönlendirme ve server-side recording. |
+
+#### Hafta 8 — WebRTC Signaling Server
 
 - [ ] Spring WebSocket sunucusu kurulumu
 - [ ] Oda (room) yönetimi
@@ -177,7 +167,7 @@ gantt
 - [ ] ICE Candidate mesaj taşıma
 - [ ] WebSocket bağlantı testleri
 
-### Hafta 9 — TURN/STUN Kurulumu
+#### Hafta 9 — TURN/STUN Kurulumu
 
 - [ ] Coturn Docker container yapılandırması
 - [ ] STUN server konfigürasyonu
@@ -185,7 +175,7 @@ gantt
 - [ ] Farklı ağ koşullarında bağlantı testleri
 - [ ] Mobil ağ (4G/5G) simülasyonu testleri
 
-### Hafta 10 — Media Server
+#### Hafta 10 — Media Server
 
 - [ ] Mediasoup (SFU) sunucu kurulumu
 - [ ] Producer/Consumer transport yönetimi
@@ -193,7 +183,17 @@ gantt
 - [ ] Server-side recording implementasyonu
 - [ ] S3'e video upload pipeline
 
-### Hafta 11 — AI Speech Pipeline
+---
+
+### İP-5: Yapay Zeka Konuşma Analizi
+
+| | |
+|---|---|
+| **Süre** | Hafta 11 – 12 (2 hafta) |
+| **Amaç** | Mülakat kayıtlarından otomatik konuşma analizi yapan yapay zeka pipeline'ının geliştirilmesi. |
+| **Çıktılar** | Python + OpenAI Whisper ile Speech-to-Text dönüşümü, WPM / duraksama / dolgu kelime analizi, JSONB formatında PostgreSQL'e kayıt. |
+
+#### Hafta 11 — AI Speech Pipeline
 
 - [ ] Python servis yapılandırması
 - [ ] S3'ten video dosyası indirme
@@ -201,7 +201,7 @@ gantt
 - [ ] OpenAI Whisper STT entegrasyonu
 - [ ] Transcript çıktısının doğrulanması
 
-### Hafta 12 — Konuşma Analizi
+#### Hafta 12 — Konuşma Analizi
 
 - [ ] WPM (Words Per Minute) hesaplama
 - [ ] Duraksama (Pause) tespiti ve oranı
@@ -209,7 +209,17 @@ gantt
 - [ ] JSONB formatında sonuç kaydetme
 - [ ] `AnalysisCompletedEvent` Kafka producer
 
-### Hafta 13 — Web & Mobil Uygulama
+---
+
+### İP-6: Önyüz Geliştirme ve Canlıya Alma
+
+| | |
+|---|---|
+| **Süre** | Hafta 13 – 14 (2 hafta) |
+| **Amaç** | Web ve mobil önyüz uygulamalarının geliştirilmesi, tüm sistemin bulut ortamına dağıtılması ve canlı testlerin yapılması. |
+| **Çıktılar** | Next.js web uygulaması, Flutter mobil uygulama, GitHub Actions CI/CD, AWS EC2 deployment, production smoke test. |
+
+#### Hafta 13 — Web ve Mobil Uygulama
 
 - [ ] Next.js: Login/Register sayfaları
 - [ ] Next.js: Uzman arama ve listeleme
@@ -221,7 +231,7 @@ gantt
 - [ ] Flutter: Mülakat odası (flutter_webrtc)
 - [ ] API entegrasyonu ve end-to-end testler
 
-### Hafta 14 — Cloud Deployment
+#### Hafta 14 — Bulut Ortamına Dağıtım
 
 - [ ] Dockerfile'lar (her servis için)
 - [ ] GitHub Actions CI pipeline (build + test)
@@ -234,14 +244,14 @@ gantt
 
 ---
 
-## 7.4 Risks & Mitigations
+## Riskler ve Önlemler
 
 | Risk | Etkisi | Olasılık | Azaltma Stratejisi |
 |------|--------|----------|-------------------|
-| **WebRTC Complexity** | Video bağlantı sorunları, platform farklılıkları | Yüksek | Mediasoup SFU ile merkezi kontrol; Coturn ile NAT traversal güvencesi; erken prototip testleri |
-| **AI Model Integration** | Whisper model boyutu, işlem süresi, doğruluk | Orta | Model boyutunu optimize etme (small/medium); asenkron pipeline ile kullanıcı bekletmeme |
-| **Distributed System Debugging** | Servisler arası hata tespiti zorluğu | Orta | Centralized logging, correlation ID ile request tracing, health check endpoint'leri |
-| **Double Booking** | Aynı slot'a eşzamanlı erişim | Yüksek | Redis distributed lock ile atomik operasyon; pessimistic lock fallback |
-| **Cloud Deployment** | Konfigürasyon hataları, maliyet kontrolü | Orta | Docker Compose ile lokal/prod paritesi; IaC (Infrastructure as Code) yaklaşımı; budget alertleri |
-| **Cross-Platform Uyumluluk** | Flutter ve Web arasında WebRTC davranış farkları | Orta | Platform spesifik adaptör katmanı; erken entegrasyon testleri |
-| **Kafka Operasyonel Karmaşıklık** | Topic yönetimi, consumer lag, partition dengeleme | Düşük | Monitoring dashboard; dead letter queue; consumer group stratejisi |
+| **WebRTC Karmaşıklığı** | Video bağlantı sorunları, platform farklılıkları | Yüksek | Mediasoup SFU ile merkezi kontrol; Coturn ile NAT traversal güvencesi; erken prototip testleri |
+| **Yapay Zeka Model Entegrasyonu** | Whisper model boyutu, işlem süresi, doğruluk | Orta | Model boyutunu optimize etme (small/medium); asenkron pipeline ile kullanıcı bekletmeme |
+| **Dağıtık Sistem Hata Ayıklama** | Servisler arası hata tespiti zorluğu | Orta | Merkezi loglama, correlation ID ile istek takibi, health check endpoint'leri |
+| **Çifte Rezervasyon** | Aynı slot'a eşzamanlı erişim | Yüksek | Redis distributed lock ile atomik operasyon; pessimistic lock fallback |
+| **Bulut Dağıtımı** | Konfigürasyon hataları, maliyet kontrolü | Orta | Docker Compose ile lokal/prod paritesi; IaC yaklaşımı; bütçe uyarıları |
+| **Platformlar Arası Uyumluluk** | Flutter ve Web arasında WebRTC davranış farkları | Orta | Platform spesifik adaptör katmanı; erken entegrasyon testleri |
+| **Kafka Operasyonel Karmaşıklık** | Topic yönetimi, consumer lag, partition dengeleme | Düşük | İzleme panosu; dead letter queue; consumer group stratejisi |
