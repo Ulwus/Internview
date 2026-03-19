@@ -48,7 +48,7 @@ Projenin tüm teknik tasarım dokümanları `docs/` klasöründe yer almaktadır
 | [Development Roadmap](docs/roadmap.md) | 14 haftalık geliştirme planı, milestone'lar, haftalık görevler ve risk analizi |
 
 ## Setup Guide
-Proje şu anda Hafta 1 (Tasarım ve Altyapı Hazırlığı) aşamasındadır. Uygulamanın geliştirme ortamı (development environment) Docker Compose üzerinden çalışabilen şekilde planlanmıştır. Klasör iskeleti aşağıdaki gibidir:
+Proje şu anda **Hafta 2 (Docker Altyapısı)** aşamasını tamamlamış durumdadır. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
 
 ```text
 internview
@@ -59,3 +59,110 @@ internview
   docs/              # Sistem Tasarım ve Mimari Dokümanları
   README.md          # Proje Genel Kullanım Dokümanı (şu an okuduğunuz dosya)
 ```
+
+### Hafta 2 – Docker Altyapısı
+
+Hafta 2 kapsamında lokal geliştirme ortamı için temel altyapı bileşenleri Docker Compose ile ayağa kaldırılır:
+
+- **PostgreSQL** (veritabanı)
+- **Redis** (cache & distributed lock)
+- **Kafka (KRaft Mode)** (event bus)
+- **Consul** (service discovery – ileride Spring Cloud ile entegre edilecek)
+
+#### 1. Ortam Değişkenleri
+
+Kök dizinde örnek bir env dosyası bulunur:
+
+- `.env.example` → örnek değerler
+- `.env` → gerçek lokal değerler (git tarafından izlenmez)
+
+Temel değişkenler:
+
+- `COMPOSE_PROJECT_NAME=internview`
+- `DOCKER_NETWORK=internview-net`
+- `POSTGRES_DB=internview`
+- `POSTGRES_USER=internview`
+- `POSTGRES_PASSWORD=internview_password`
+- `KAFKA_CLUSTER_ID=abcdefghijklmnopqrstuv`
+
+İlk kurulum için:
+
+```bash
+cp .env.example .env
+```
+
+Gerekiyorsa `.env` içindeki şifre vb. değerleri değiştirebilirsiniz.
+
+#### 2. Docker Compose ile altyapıyı ayağa kaldırma
+
+`infrastructure/docker-compose.yml` dosyası aşağıdaki servisleri içerir:
+
+- `postgres` → 5432
+- `redis` → 6379
+- `kafka` → 9092
+- `consul` → 8500
+
+Çalıştırmak için:
+
+```bash
+cd infrastructure
+docker compose up -d
+```
+
+Tüm containerlar aynı Docker ağı üzerinde çalışır (`internview-net`), böylece backend servisleri şu host/port kombinasyonlarını kullanabilir:
+
+- PostgreSQL: `jdbc:postgresql://postgres:5432/internview`
+- Redis: `redis://redis:6379`
+- Kafka: `kafka:9092`
+- Consul: `http://consul:8500`
+
+#### 3. Hızlı health / bağlantı kontrolleri
+
+Altyapı ayağa kalktıktan sonra temel kontroller:
+
+- **PostgreSQL**
+  - Host makineden:
+    ```bash
+    psql "postgresql://internview:internview_password@localhost:5432/internview"
+    ```
+- **Redis**
+  - Host makineden veya container içinden ping:
+    ```bash
+    redis-cli -h localhost -p 6379 PING
+    # veya
+    docker exec -it internview-redis redis-cli PING
+    ```
+- **Kafka**
+  - Container içinden basit topic oluşturma / listeleme:
+    ```bash
+    docker exec -it internview-kafka kafka-topics.sh \
+      --bootstrap-server kafka:9092 \
+      --create --topic internview_ping --partitions 1 --replication-factor 1
+
+    docker exec -it internview-kafka kafka-topics.sh \
+      --bootstrap-server kafka:9092 --list
+    ```
+- **Consul**
+  - Tarayıcıdan UI:
+    ```text
+    http://localhost:8500/ui/
+    ```
+  - CLI ile lider health kontrolü:
+    ```bash
+    curl http://localhost:8500/v1/status/leader
+    ```
+
+#### 4. Spring Boot servislerinden bağlantı (lokal JVM)
+
+Spring Boot servislerini şimdilik IDE’den lokal JVM olarak çalıştırırken:
+
+- DB URL (lokal port üzerinden):
+  - `spring.datasource.url=jdbc:postgresql://localhost:5432/${POSTGRES_DB}`
+- Redis:
+  - `spring.data.redis.host=localhost`
+  - `spring.data.redis.port=6379`
+- Kafka:
+  - `spring.kafka.bootstrap-servers=localhost:9092`
+
+ Container içinden çalıştırmak istediğinizde host isimlerini `postgres`, `redis`, `kafka`, `consul` olarak değiştirebilirsiniz.
+

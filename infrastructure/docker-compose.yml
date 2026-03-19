@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: internview-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-internview}
+      POSTGRES_USER: ${POSTGRES_USER:-internview}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-internview_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+
+  redis:
+    image: redis:7-alpine
+    container_name: internview-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/data:/data
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: internview-kafka
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_LOG_DIRS: /bitnami/kafka/data
+      KAFKA_KRAFT_CLUSTER_ID: ${KAFKA_CLUSTER_ID:-abcdefghijklmnopqrstuv}
+    ports:
+      - "9092:9092"
+    volumes:
+      - ./kafka/data:/bitnami/kafka/data
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+
+  consul:
+    image: hashicorp/consul:1.17
+    container_name: internview-consul
+    command: agent -dev -client=0.0.0.0
+    ports:
+      - "8500:8500"
+    volumes:
+      - ./consul/data:/consul/data
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+
+networks:
+  internview-net:
+    name: ${DOCKER_NETWORK:-internview-net}
+    driver: bridge
+

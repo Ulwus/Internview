@@ -78,13 +78,13 @@ gantt
 
 **Amaç:** Geliştirme ortamının konteynerize edilmesi
 
-- [ ] `docker-compose.yml` dosyasının oluşturulması
-- [ ] PostgreSQL container yapılandırması
-- [ ] Redis container yapılandırması
-- [ ] Apache Kafka (KRaft Mode) container yapılandırması
-- [ ] HashiCorp Consul container yapılandırması
-- [ ] Backend ↔ dış bileşen entegrasyon ping testi
-- [ ] `.env` dosyaları ve environment variable yönetimi
+- [X] `docker-compose.yml` dosyasının oluşturulması
+- [X] PostgreSQL container yapılandırması
+- [X] Redis container yapılandırması
+- [X] Apache Kafka (KRaft Mode) container yapılandırması
+- [X] HashiCorp Consul container yapılandırması
+- [X] Backend ↔ dış bileşen entegrasyon ping testi
+- [X] `.env` dosyaları ve environment variable yönetimi
 
 ---
 
