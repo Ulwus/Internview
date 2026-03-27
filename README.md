@@ -48,7 +48,7 @@ Projenin tüm teknik tasarım dokümanları `docs/` klasöründe yer almaktadır
 | [Development Roadmap](docs/roadmap.md) | 14 haftalık geliştirme planı, milestone'lar, haftalık görevler ve risk analizi |
 
 ## Setup Guide
-Proje şu anda **Hafta 2 (Docker Altyapısı)** aşamasını tamamlamış durumdadır. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
+Proje şu anda **Hafta 3 (API Gateway)** aşamasını tamamlamış durumdadır. Spring Cloud Gateway ile route tanımlamaları, basic authentication filter, rate limiting ve request/response loglama katmanları eklenmiştir. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
 
 ```text
 internview

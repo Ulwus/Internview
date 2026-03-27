@@ -98,11 +98,11 @@ gantt
 
 #### Hafta 3 — API Gateway
 
-- [ ] Spring Cloud Gateway projesi oluşturma
-- [ ] Route tanımlamaları (auth, user, booking, interview)
-- [ ] Request/response loglama
-- [ ] Basic authentication filter
-- [ ] Rate limiting yapılandırması
+- [X] Spring Cloud Gateway projesi oluşturma
+- [X] Route tanımlamaları (auth, user, booking, interview)
+- [X] Request/response loglama
+- [X] Basic authentication filter
+- [X] Rate limiting yapılandırması
 
 #### Hafta 4 — Auth Service
 
