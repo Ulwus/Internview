@@ -106,12 +106,12 @@ gantt
 
 #### Hafta 4 — Auth Service
 
-- [ ] Spring Security yapılandırması
-- [ ] JWT token üretimi ve doğrulama
-- [ ] `POST /auth/register` endpoint
-- [ ] `POST /auth/login` endpoint
-- [ ] `POST /auth/refresh` endpoint
-- [ ] Rol bazlı erişim kontrolü (RBAC)
+- [X] Spring Security yapılandırması
+- [X] JWT token üretimi ve doğrulama
+- [X] `POST /auth/register` endpoint
+- [X] `POST /auth/login` endpoint
+- [X] `POST /auth/refresh` endpoint
+- [X] Rol bazlı erişim kontrolü (RBAC)
 
 #### Hafta 5 — User Service
 

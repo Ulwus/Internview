@@ -4,6 +4,7 @@
 Internview, adayların ve uzmanların bir araya gelerek gerçek zamanlı, gerçeğe en yakın profesyonel mülakat deneyimini yaşayabilecekleri yenilikçi bir platformdur. Amacımız, adayları mülakatlara hazırlarken objektif metriklerle taranan (yapay zeka analizleri) konuşma performanslarını ölçmektir.
 
 ## Özellikler
+- **Kimlik Doğrulama (Auth Service):** JWT tabanlı kayıt, giriş ve token yenileme; API Gateway üzerinden `/auth` rotaları; rol bazlı erişim (aday, uzman, yönetici).
 - **Uzman Profili ve Müsaitlik Yönetimi:** Uzmanlar kendi müsaitlik saatlerini belirleyebilir ve yönetebilir.
 - **Gerçek Zamanlı Mülakat:** WebRTC ve Mediasoup altyapısıyla güvenilir, kesintisiz video ve ses görüşme imkanı.
 - **Yapay Zeka Destekli Analiz:** OpenAI Whisper kullanılarak konuşmalar metne dökülür; konuşma hızı, duraksama oranı, dolgu kelime kullanımı gibi metrikler detaylı olarak hesaplanır.
@@ -23,7 +24,7 @@ Sistem, gerçek dünya startup gereksinimlerini karşılamak üzere dağıtık m
 Detaylı mimari şemalar ve servis açıklamaları için [Sistem Mimarisi](docs/system-architecture.md) dokümanına göz atınız.
 
 ## Kullanılan Teknolojiler
-- **Backend:** Java 21, Spring Boot, Spring Cloud Gateway, HashiCorp Consul (Service Discovery)
+- **Backend:** Java 21, Spring Boot, Spring Cloud Gateway, Spring Security + JWT (Auth Service), Flyway, HashiCorp Consul (Service Discovery)
 - **Veritabanı ve Önbellek:** PostgreSQL (İlişkisel & JSONB veriler için), Redis (Cache & Locking)
 - **Message Broker:** Apache Kafka (KRaft Mode)
 - **Gerçek Zamanlı İletişim:** WebRTC, Mediasoup (SFU Server), Coturn (STUN/TURN)
@@ -48,11 +49,16 @@ Projenin tüm teknik tasarım dokümanları `docs/` klasöründe yer almaktadır
 | [Development Roadmap](docs/roadmap.md) | 14 haftalık geliştirme planı, milestone'lar, haftalık görevler ve risk analizi |
 
 ## Setup Guide
-Proje şu anda **Hafta 3 (API Gateway)** aşamasını tamamlamış durumdadır. Spring Cloud Gateway ile route tanımlamaları, basic authentication filter, rate limiting ve request/response loglama katmanları eklenmiştir. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
+Proje şu anda **Hafta 3 (API Gateway)** ve **Hafta 4 (Auth Service)** aşamalarını tamamlamış durumdadır. Gateway tarafında route tanımları, basic authentication filter, rate limiting ve loglama; auth tarafında ise Spring Security, HS256 JWT (üretim/doğrulama), Flyway ile PostgreSQL şeması, `register` / `login` / `refresh` uçları ve rol tabanlı erişim (RBAC) bulunmaktadır. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
 
 ```text
 internview
-  backend/           # Spring Boot Application ana klasörü
+  backend/           # Spring Boot mikroservisleri
+    gateway/         # Spring Cloud Gateway (8080)
+    auth-service/    # JWT kimlik doğrulama (8081)
+    user-service/
+    booking-service/
+    interview-service/
   web/               # Next.js (Web Frontend) projesi
   mobile/            # Flutter (Mobil Client) projesi
   infrastructure/    # Kafka, DB, Mediasoup vs. yapılandırma dosyaları (Docker)
@@ -165,4 +171,44 @@ Spring Boot servislerini şimdilik IDE’den lokal JVM olarak çalıştırırken
   - `spring.kafka.bootstrap-servers=localhost:9092`
 
  Container içinden çalıştırmak istediğinizde host isimlerini `postgres`, `redis`, `kafka`, `consul` olarak değiştirebilirsiniz.
+
+#### 5. Auth Service (Hafta 4)
+
+Auth Service varsayılan olarak **8081** portunda çalışır. API Gateway (`8080`) üzerinden **`/auth/*`** ile erişilir; gateway **`StripPrefix=1`** kullandığı için servis içi path’ler `/register`, `/login`, `/refresh` şeklindedir (prefix yok). Detaylı sözleşme için [API Design – Authentication](docs/api-design.md) bölümüne bakın.
+
+**Önkoşullar:** PostgreSQL ayakta olmalıdır (Flyway migration’lar ilk açılışta şemayı oluşturur). `backend/auth-service/src/main/resources/application.properties` içindeki `POSTGRES_*` ve `auth.jwt.*` değerleri ihtiyaca göre override edilebilir.
+
+**Ortam değişkenleri (özet):**
+
+| Değişken | Açıklama |
+|----------|----------|
+| `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Veritabanı bağlantısı |
+| `AUTH_JWT_SECRET` | HS256 için yeterince uzun gizli anahtar (üretimde zorunlu önerilir) |
+| `AUTH_ACCESS_TOKEN_TTL_SECONDS` | Access token ömrü (varsayılan 3600) |
+| `AUTH_REFRESH_TOKEN_TTL_SECONDS` | Refresh token ömrü |
+
+**Çalıştırma (lokal JVM, Java 21):**
+
+```bash
+cd backend/auth-service
+./mvnw spring-boot:run
+```
+
+**Örnek istekler (gateway açıkken):**
+
+```bash
+# Kayıt
+curl -s -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"aday@example.com","password":"SecurePass123!","first_name":"Ali","last_name":"Yılmaz","role":"CANDIDATE"}'
+
+# Giriş
+curl -s -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"aday@example.com","password":"SecurePass123!"}'
+```
+
+Korumalı örnek uçlar (doğrudan auth servisine, Bearer token ile): `GET http://localhost:8081/me`, `GET http://localhost:8081/admin/ping` (yalnızca `ADMIN` rolü).
+
+**Testler:** `cd backend/auth-service && ./mvnw test` — CI ortamında Docker yoksa `test` profili H2 bellek veritabanı kullanır; gerçek PostgreSQL + Flyway akışı için altyapıyı Docker ile ayağa kaldırıp servisi `default` profille çalıştırın.
 
