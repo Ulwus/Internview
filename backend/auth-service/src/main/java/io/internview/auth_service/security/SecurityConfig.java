@@ -13,12 +13,17 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import lombok.RequiredArgsConstructor;
+
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+	private final JwtDecoder jwtDecoder;
+	private final Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter;
+
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder jwtDecoder,
-			Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter) throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http.csrf(AbstractHttpConfigurer::disable);
 		http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 		http.authorizeHttpRequests(auth -> auth
@@ -26,7 +31,7 @@ public class SecurityConfig {
 			.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 			.anyRequest().authenticated());
 		http.oauth2ResourceServer(oauth2 -> oauth2
-			.jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter)));
+			.jwt(jwt -> jwt.decoder(this.jwtDecoder).jwtAuthenticationConverter(this.jwtAuthenticationConverter)));
 		return http.build();
 	}
 

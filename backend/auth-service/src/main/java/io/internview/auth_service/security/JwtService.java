@@ -13,18 +13,16 @@ import org.springframework.stereotype.Service;
 
 import io.internview.auth_service.domain.User;
 import io.internview.auth_service.domain.UserRole;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class JwtService {
 
 	private final JwtEncoder jwtEncoder;
-	private final long accessTokenTtlSeconds;
 
-	public JwtService(JwtEncoder jwtEncoder,
-			@Value("${auth.jwt.access-token-ttl-seconds}") long accessTokenTtlSeconds) {
-		this.jwtEncoder = jwtEncoder;
-		this.accessTokenTtlSeconds = accessTokenTtlSeconds;
-	}
+	@Value("${auth.jwt.access-token-ttl-seconds}")
+	private long accessTokenTtlSeconds;
 
 	public String createAccessToken(User user) {
 		Instant now = Instant.now();
@@ -32,7 +30,7 @@ public class JwtService {
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 			.subject(user.getId().toString())
 			.issuedAt(now)
-			.expiresAt(now.plusSeconds(accessTokenTtlSeconds))
+			.expiresAt(now.plusSeconds(this.accessTokenTtlSeconds))
 			.claim("email", user.getEmail())
 			.claim("role", user.getRole().name())
 			.build();
@@ -49,7 +47,7 @@ public class JwtService {
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 			.subject(userId.toString())
 			.issuedAt(now)
-			.expiresAt(now.plusSeconds(accessTokenTtlSeconds))
+			.expiresAt(now.plusSeconds(this.accessTokenTtlSeconds))
 			.claim("email", email)
 			.claim("role", role.name())
 			.build();

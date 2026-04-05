@@ -1,8 +1,7 @@
 package io.internview.auth_service.error;
 
-public class UserNotFoundException extends RuntimeException {
+import lombok.experimental.StandardException;
 
-	public UserNotFoundException(String message) {
-		super(message);
-	}
+@StandardException
+public class UserNotFoundException extends RuntimeException {
 }

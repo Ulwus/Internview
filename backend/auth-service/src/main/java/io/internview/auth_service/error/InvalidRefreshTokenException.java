@@ -1,8 +1,7 @@
 package io.internview.auth_service.error;
 
-public class InvalidRefreshTokenException extends RuntimeException {
+import lombok.experimental.StandardException;
 
-	public InvalidRefreshTokenException(String message) {
-		super(message);
-	}
+@StandardException
+public class InvalidRefreshTokenException extends RuntimeException {
 }

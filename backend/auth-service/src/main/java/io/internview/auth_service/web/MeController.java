@@ -10,15 +10,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.internview.auth_service.service.AuthService;
 import io.internview.auth_service.web.dto.MeResponseData;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 public class MeController {
 
 	private final AuthService authService;
-
-	public MeController(AuthService authService) {
-		this.authService = authService;
-	}
 
 	@GetMapping("/me")
 	@PreAuthorize("isAuthenticated()")

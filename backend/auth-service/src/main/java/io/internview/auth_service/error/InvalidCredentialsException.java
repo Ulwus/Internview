@@ -1,8 +1,7 @@
 package io.internview.auth_service.error;
 
-public class InvalidCredentialsException extends RuntimeException {
+import lombok.experimental.StandardException;
 
-	public InvalidCredentialsException(String message) {
-		super(message);
-	}
+@StandardException
+public class InvalidCredentialsException extends RuntimeException {
 }

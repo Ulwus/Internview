@@ -14,15 +14,13 @@ import io.internview.auth_service.web.dto.RefreshResponseData;
 import io.internview.auth_service.web.dto.RegisterRequest;
 import io.internview.auth_service.web.dto.RegisterResponseData;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 public class AuthController {
 
 	private final AuthService authService;
-
-	public AuthController(AuthService authService) {
-		this.authService = authService;
-	}
 
 	@PostMapping("/register")
 	@ResponseStatus(HttpStatus.CREATED)

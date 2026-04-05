@@ -1,8 +1,7 @@
 package io.internview.auth_service.error;
 
-public class EmailAlreadyRegisteredException extends RuntimeException {
+import lombok.experimental.StandardException;
 
-	public EmailAlreadyRegisteredException(String message) {
-		super(message);
-	}
+@StandardException
+public class EmailAlreadyRegisteredException extends RuntimeException {
 }
