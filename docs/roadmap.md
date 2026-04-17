@@ -115,12 +115,12 @@ gantt
 
 #### Hafta 5 — User Service
 
-- [ ] User entity ve repository katmanı
-- [ ] ExpertProfile, Skill, Industry entity'leri
-- [ ] `GET /experts` — filtreleme ve pagination
-- [ ] `GET /experts/{id}` — uzman detay
-- [ ] `PUT /users/profile` — profil güncelleme
-- [ ] Unit testler
+- [X] User entity ve repository katmanı
+- [X] ExpertProfile, Skill, Industry entity'leri
+- [X] `GET /experts` — filtreleme ve pagination
+- [X] `GET /experts/{id}` — uzman detay
+- [X] `PUT /users/profile` — profil güncelleme
+- [X] Unit testler
 
 #### Hafta 6 — Booking Service
 
