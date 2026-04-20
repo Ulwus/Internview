@@ -124,11 +124,11 @@ gantt
 
 #### Hafta 6 — Booking Service
 
-- [ ] AvailabilitySlot CRUD operasyonları
-- [ ] `POST /bookings` — randevu oluşturma
-- [ ] Redis distributed lock implementasyonu
-- [ ] Çifte rezervasyon senaryosu testleri
-- [ ] Booking durum yönetimi (state machine)
+- [X] AvailabilitySlot CRUD operasyonları
+- [X] `POST /bookings` — randevu oluşturma
+- [X] Redis distributed lock implementasyonu
+- [X] Çifte rezervasyon senaryosu testleri
+- [X] Booking durum yönetimi (state machine)
 
 ---
 
