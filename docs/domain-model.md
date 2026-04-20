@@ -4,27 +4,28 @@
 
 Internview'in domain modeli, bir adayın platforma kaydolmasından, uzman ile mülakat yapıp AI destekli performans raporu almasına kadarki tüm iş sürecini kapsayan entity'lerden oluşur.
 
+> **Not:** Bu döküman mevcut koddaki implementasyonu yansıtır. `InterviewSession` ve `InterviewAnalysis` entity'leri roadmap'te **planlanan** olarak işaretlidir ve henüz implemente edilmemiştir; bu bölümler ileride hayata geçecek tasarımı gösterir.
+
 ### Ana Kavramlar (Bounded Contexts)
 
 ```mermaid
 graph LR
-    subgraph "Identity & Access"
+    subgraph "Identity & Access (auth-service / user-service)"
         User["User"]
-        Role["Role"]
     end
 
-    subgraph "Expert Management"
+    subgraph "Expert Management (user-service)"
         ExpertProfile["Expert Profile"]
         Skill["Skill"]
         Industry["Industry"]
     end
 
-    subgraph "Scheduling"
+    subgraph "Scheduling (booking-service)"
         AvailabilitySlot["Availability Slot"]
         Booking["Booking"]
     end
 
-    subgraph "Interview & Analysis"
+    subgraph "Interview & Analysis (planlanan)"
         InterviewSession["Interview Session"]
         InterviewAnalysis["Interview Analysis"]
     end
@@ -45,48 +46,45 @@ graph LR
 
 ### User
 
-Sistemdeki tüm kullanıcıları temsil eder. Bir kullanıcı hem aday hem uzman rolüne sahip olabilir.
+Sistemdeki tüm kullanıcıları temsil eder. Rol bilgisi tek bir enum alanında tutulur (`CANDIDATE`, `EXPERT`, `ADMIN`); bir kullanıcının birden fazla rolü olamaz.
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `id` | `UUID` | Benzersiz kullanıcı kimliği (Primary Key) |
 | `email` | `VARCHAR(255)` | Kullanıcı e-posta adresi (Unique) |
-| `password_hash` | `VARCHAR(255)` | BCrypt ile hashlenmiş parola |
+| `password_hash` | `VARCHAR` | BCrypt ile hashlenmiş parola |
 | `first_name` | `VARCHAR(100)` | Ad |
 | `last_name` | `VARCHAR(100)` | Soyad |
-| `avatar_url` | `TEXT` | Profil fotoğrafı URL'i |
+| `avatar_url` | `VARCHAR(512)` | Profil fotoğrafı URL'i (nullable) |
+| `role` | `ENUM` | `CANDIDATE`, `EXPERT`, `ADMIN` |
 | `created_at` | `TIMESTAMP` | Oluşturulma tarihi |
 | `updated_at` | `TIMESTAMP` | Son güncelleme tarihi |
 
-### Role
-
-Kullanıcıya atanabilen rolleri tanımlar. Many-to-Many ilişki ile bir kullanıcı birden fazla role sahip olabilir.
-
-| Alan | Tip | Açıklama |
-|------|-----|----------|
-| `id` | `BIGINT` | Primary Key |
-| `name` | `VARCHAR(50)` | Rol adı: `CANDIDATE`, `EXPERT`, `ADMIN` |
-
-**Ara Tablo — `user_roles`:**
-
-| Alan | Tip | Açıklama |
-|------|-----|----------|
-| `user_id` | `UUID` | FK → `users.id` |
-| `role_id` | `BIGINT` | FK → `roles.id` |
+**Kod referansı:** `backend/user-service/.../domain/User.java`, `UserRole.java`
 
 ### ExpertProfile
 
-Uzman rolüne sahip kullanıcıların detaylı profil bilgilerini içerir.
+Uzman rolüne sahip kullanıcıların detaylı profil bilgilerini içerir. Bir uzmanın tek bir sektörü (`industry`), birden fazla `skill`'i olabilir.
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `id` | `UUID` | Primary Key |
-| `user_id` | `UUID` | FK → `users.id` (One-to-One) |
+| `user_id` | `UUID` | FK → `users.id` (One-to-One, unique) |
+| `industry_id` | `UUID` | FK → `industries.id` (Many-to-One, nullable) |
+| `headline` | `VARCHAR(160)` | Kısa başlık (Sr. Backend Engineer @ Google) |
 | `bio` | `TEXT` | Uzman biyografisi |
-| `current_company` | `VARCHAR(255)` | Çalıştığı şirket |
-| `title` | `VARCHAR(255)` | Ünvanı (Sr. Software Engineer, CTO vb.) |
-| `experience_years` | `INTEGER` | Toplam deneyim yılı |
-| `rating` | `DECIMAL(3,2)` | Ortalama değerlendirme puanı (0.00 – 5.00) |
+| `company` | `VARCHAR(160)` | Çalıştığı şirket |
+| `years_of_experience` | `INTEGER` | Toplam deneyim yılı |
+| `hourly_rate` | `DECIMAL(10,2)` | Saatlik ücret (nullable) |
+| `currency` | `VARCHAR(3)` | ISO 4217 para birimi kodu (örn. `USD`, `TRY`) |
+| `average_rating` | `DECIMAL(3,2)` | Ortalama değerlendirme puanı (0.00 – 5.00) |
+| `total_sessions` | `INTEGER` | Tamamlanmış toplam oturum sayısı |
+| `is_verified` | `BOOLEAN` | Uzman doğrulandı mı? |
+| `is_available` | `BOOLEAN` | Yeni rezervasyonlara açık mı? |
+| `created_at` | `TIMESTAMP` | Oluşturulma tarihi |
+| `updated_at` | `TIMESTAMP` | Son güncelleme tarihi |
+
+**Kod referansı:** `backend/user-service/.../domain/ExpertProfile.java`
 
 ### Skill
 
@@ -94,58 +92,66 @@ Uzmanların sahip olduğu teknik yetenekleri temsil eder (Many-to-Many).
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
-| `id` | `BIGINT` | Primary Key |
-| `name` | `VARCHAR(100)` | Yetenek adı: Java, React, Flutter, System Design vb. |
+| `id` | `UUID` | Primary Key |
+| `name` | `VARCHAR(100)` | Yetenek adı: Java, React, Flutter, System Design vb. (Unique) |
+| `slug` | `VARCHAR(120)` | URL-safe kısa ad (Unique) |
+| `created_at` | `TIMESTAMP` | Oluşturulma tarihi |
 
-**Ara Tablo — `expert_skills`:**
+**Ara Tablo — `expert_profile_skills`:**
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
-| `expert_id` | `UUID` | FK → `expert_profiles.id` |
-| `skill_id` | `BIGINT` | FK → `skills.id` |
+| `expert_profile_id` | `UUID` | FK → `expert_profiles.id` |
+| `skill_id` | `UUID` | FK → `skills.id` |
 
 ### Industry
 
-Uzmanların uzmanlık sektörlerini tanımlar (Many-to-Many).
+Uzmanların uzmanlık sektörünü tanımlar. ExpertProfile → Industry ilişkisi **Many-to-One**'dır (bir uzman tek bir sektöre bağlıdır).
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
-| `id` | `BIGINT` | Primary Key |
-| `name` | `VARCHAR(100)` | Sektör adı: Fintech, E-Commerce, HealthTech vb. |
+| `id` | `UUID` | Primary Key |
+| `name` | `VARCHAR(100)` | Sektör adı: Fintech, E-Commerce, HealthTech vb. (Unique) |
+| `slug` | `VARCHAR(120)` | URL-safe kısa ad (Unique) |
+| `created_at` | `TIMESTAMP` | Oluşturulma tarihi |
 
-**Ara Tablo — `expert_industries`:**
-
-| Alan | Tip | Açıklama |
-|------|-----|----------|
-| `expert_id` | `UUID` | FK → `expert_profiles.id` |
-| `industry_id` | `BIGINT` | FK → `industries.id` |
+**Kod referansı:** `backend/user-service/.../domain/Skill.java`, `Industry.java`
 
 ### AvailabilitySlot
 
-Uzmanların müsait oldukları zaman aralıklarını tanımlar.
+Uzmanların müsait oldukları zaman aralıklarını tanımlar. `booking-service` içinde yer alır ve `expert_id` cross-service bir `UUID` referansı olarak tutulur (FK constraint yoktur, servis sınırı gereği).
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `id` | `UUID` | Primary Key |
-| `expert_id` | `UUID` | FK → `expert_profiles.id` |
-| `start_time` | `TIMESTAMP` | Slot başlangıç zamanı |
-| `end_time` | `TIMESTAMP` | Slot bitiş zamanı |
+| `expert_id` | `UUID` | Uzman kullanıcının `users.id`'si (cross-service referans) |
+| `start_time` | `TIMESTAMP` | Slot başlangıç zamanı (UTC) |
+| `end_time` | `TIMESTAMP` | Slot bitiş zamanı (UTC) |
 | `is_booked` | `BOOLEAN` | Slot rezerve edildi mi? (Default: `false`) |
+| `created_at` | `TIMESTAMP` | Oluşturulma tarihi |
+| `updated_at` | `TIMESTAMP` | Son güncelleme tarihi |
+
+**Kod referansı:** `backend/booking-service/.../domain/AvailabilitySlot.java`
 
 ### Booking
 
-Aday ile uzman arasındaki randevuyu temsil eder.
+Aday ile uzman arasındaki randevuyu temsil eder. Slot başlangıç/bitiş zamanı snapshot olarak booking üzerine kopyalanır (`scheduled_start`, `scheduled_end`); slot silinse dahi rezervasyonun tarih bilgisi kaybolmaz.
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `id` | `UUID` | Primary Key |
-| `candidate_id` | `UUID` | FK → `users.id` (Randevu alan aday) |
-| `expert_id` | `UUID` | FK → `expert_profiles.id` (Randevu verilen uzman) |
-| `slot_id` | `UUID` | FK → `availability_slots.id` (Kapatılan slot) |
+| `candidate_id` | `UUID` | Randevu alan adayın `users.id`'si (cross-service referans) |
+| `expert_id` | `UUID` | Randevu verilen uzmanın `users.id`'si (cross-service referans) |
+| `slot_id` | `UUID` | FK → `availability_slots.id` (Unique — bir slot tek booking'e bağlanır) |
 | `status` | `ENUM` | `PENDING` → `CONFIRMED` → `COMPLETED` / `CANCELLED` |
+| `scheduled_start` | `TIMESTAMP` | Rezervasyon başlangıç anı (slot'tan kopyalanır) |
+| `scheduled_end` | `TIMESTAMP` | Rezervasyon bitiş anı (slot'tan kopyalanır) |
 | `created_at` | `TIMESTAMP` | Randevu oluşturulma zamanı |
+| `updated_at` | `TIMESTAMP` | Son güncelleme tarihi |
 
-### InterviewSession
+**Kod referansı:** `backend/booking-service/.../domain/Booking.java`, `BookingStatus.java`
+
+### InterviewSession *(planlanan — henüz implemente edilmedi)*
 
 Bir randevunun gerçekleşen mülakat oturumunu temsil eder.
 
@@ -159,7 +165,7 @@ Bir randevunun gerçekleşen mülakat oturumunu temsil eder.
 | `recorded_video_url` | `TEXT` | S3'teki video kaydının URL'i |
 | `status` | `ENUM` | `WAITING` → `IN_PROGRESS` → `COMPLETED` |
 
-### InterviewAnalysis
+### InterviewAnalysis *(planlanan — henüz implemente edilmedi)*
 
 AI tarafından üretilen mülakat analiz raporunu temsil eder.
 
@@ -197,16 +203,13 @@ AI tarafından üretilen mülakat analiz raporunu temsil eder.
 
 ```mermaid
 erDiagram
-    USERS ||--o{ USER_ROLES : has
-    ROLES ||--o{ USER_ROLES : has
-    USERS ||--o| EXPERT_PROFILES : "has (if expert)"
-    EXPERT_PROFILES ||--o{ EXPERT_SKILLS : has
-    SKILLS ||--o{ EXPERT_SKILLS : has
-    EXPERT_PROFILES ||--o{ EXPERT_INDUSTRIES : has
-    INDUSTRIES ||--o{ EXPERT_INDUSTRIES : has
-    EXPERT_PROFILES ||--o{ AVAILABILITY_SLOTS : offers
+    USERS ||--o| EXPERT_PROFILES : "has (if EXPERT role)"
+    INDUSTRIES ||--o{ EXPERT_PROFILES : classifies
+    EXPERT_PROFILES ||--o{ EXPERT_PROFILE_SKILLS : has
+    SKILLS ||--o{ EXPERT_PROFILE_SKILLS : has
+    USERS ||--o{ AVAILABILITY_SLOTS : offers
     USERS ||--o{ BOOKINGS : "creates (as candidate)"
-    EXPERT_PROFILES ||--o{ BOOKINGS : "receives"
+    USERS ||--o{ BOOKINGS : "receives (as expert)"
     AVAILABILITY_SLOTS ||--o| BOOKINGS : "booked by"
     BOOKINGS ||--o| INTERVIEW_SESSIONS : starts
     INTERVIEW_SESSIONS ||--o| INTERVIEW_ANALYSIS : generates
@@ -216,22 +219,23 @@ erDiagram
 
 | İlişki | Tip | Açıklama |
 |--------|-----|----------|
-| User ↔ Role | Many-to-Many | Bir kullanıcı birden fazla role sahip olabilir |
-| User ↔ ExpertProfile | One-to-One | Sadece uzman rolündeki kullanıcılar |
-| ExpertProfile ↔ Skill | Many-to-Many | Bir uzmanın birden fazla yeteneği olabilir |
-| ExpertProfile ↔ Industry | Many-to-Many | Bir uzman birden fazla sektörde aktif olabilir |
-| ExpertProfile ↔ AvailabilitySlot | One-to-Many | Uzman birden fazla müsaitlik aralığı tanımlayabilir |
-| User ↔ Booking | One-to-Many | Aday birden fazla randevu oluşturabilir |
-| ExpertProfile ↔ Booking | One-to-Many | Uzman birden fazla randevu alabilir |
-| AvailabilitySlot ↔ Booking | One-to-One | Bir slot yalnızca bir randevuya atanabilir |
-| Booking ↔ InterviewSession | One-to-One | Her randevu bir mülakat oturumuna karşılık gelir |
-| InterviewSession ↔ InterviewAnalysis | One-to-One | Her oturum bir AI analiz raporu üretir |
+| User ↔ ExpertProfile | One-to-One | Sadece `EXPERT` rolündeki kullanıcılar |
+| ExpertProfile ↔ Industry | Many-to-One | Bir uzman tek bir sektöre bağlıdır (nullable) |
+| ExpertProfile ↔ Skill | Many-to-Many | `expert_profile_skills` ara tablosu |
+| User ↔ AvailabilitySlot | One-to-Many | Slot, `expert_id` üzerinden cross-service referans tutar |
+| User ↔ Booking (candidate) | One-to-Many | Aday birden fazla randevu oluşturabilir |
+| User ↔ Booking (expert) | One-to-Many | Uzman birden fazla randevu alabilir |
+| AvailabilitySlot ↔ Booking | One-to-One | `slot_id` unique — bir slot yalnızca bir booking'e atanır |
+| Booking ↔ InterviewSession | One-to-One | *(planlanan)* Her randevu bir mülakat oturumuna karşılık gelir |
+| InterviewSession ↔ InterviewAnalysis | One-to-One | *(planlanan)* Her oturum bir AI analiz raporu üretir |
+
+> **Cross-Service Referanslar:** `availability_slots.expert_id`, `bookings.candidate_id` ve `bookings.expert_id` alanları **farklı servislerin veritabanlarındaki** `users.id`'yi işaret eder; veritabanı seviyesinde FK constraint yoktur. Bütünlük kontrolü uygulama katmanında yapılır (ör. booking oluştururken uzmanın varlığı `user-service`'e HTTP çağrısı ile doğrulanır).
 
 ---
 
 ## 3.4 ER Diagram
 
-Aşağıdaki diyagram tüm entity'lerin veritabanı tablo temsillerini ve aralarındaki foreign key ilişkilerini göstermektedir.
+Aşağıdaki diyagram mevcut koddaki tablo temsillerini ve aralarındaki ilişkileri göstermektedir. Planlanan entity'ler *italik* olarak işaretlidir.
 
 ```mermaid
 erDiagram
@@ -241,66 +245,69 @@ erDiagram
         VARCHAR password_hash
         VARCHAR first_name
         VARCHAR last_name
-        TEXT avatar_url
+        VARCHAR avatar_url
+        ENUM role
         TIMESTAMP created_at
         TIMESTAMP updated_at
-    }
-
-    roles {
-        BIGINT id PK
-        VARCHAR name
-    }
-
-    user_roles {
-        UUID user_id FK
-        BIGINT role_id FK
     }
 
     expert_profiles {
         UUID id PK
         UUID user_id FK
+        UUID industry_id FK
+        VARCHAR headline
         TEXT bio
-        VARCHAR current_company
-        VARCHAR title
-        INTEGER experience_years
-        DECIMAL rating
+        VARCHAR company
+        INTEGER years_of_experience
+        DECIMAL hourly_rate
+        VARCHAR currency
+        DECIMAL average_rating
+        INTEGER total_sessions
+        BOOLEAN is_verified
+        BOOLEAN is_available
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 
     skills {
-        BIGINT id PK
-        VARCHAR name
+        UUID id PK
+        VARCHAR name UK
+        VARCHAR slug UK
+        TIMESTAMP created_at
     }
 
-    expert_skills {
-        UUID expert_id FK
-        BIGINT skill_id FK
+    expert_profile_skills {
+        UUID expert_profile_id FK
+        UUID skill_id FK
     }
 
     industries {
-        BIGINT id PK
-        VARCHAR name
-    }
-
-    expert_industries {
-        UUID expert_id FK
-        BIGINT industry_id FK
+        UUID id PK
+        VARCHAR name UK
+        VARCHAR slug UK
+        TIMESTAMP created_at
     }
 
     availability_slots {
         UUID id PK
-        UUID expert_id FK
+        UUID expert_id
         TIMESTAMP start_time
         TIMESTAMP end_time
         BOOLEAN is_booked
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 
     bookings {
         UUID id PK
-        UUID candidate_id FK
-        UUID expert_id FK
+        UUID candidate_id
+        UUID expert_id
         UUID slot_id FK
         ENUM status
+        TIMESTAMP scheduled_start
+        TIMESTAMP scheduled_end
         TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 
     interview_sessions {
@@ -321,16 +328,10 @@ erDiagram
         TIMESTAMP created_at
     }
 
-    users ||--o{ user_roles : ""
-    roles ||--o{ user_roles : ""
     users ||--o| expert_profiles : ""
-    expert_profiles ||--o{ expert_skills : ""
-    skills ||--o{ expert_skills : ""
-    expert_profiles ||--o{ expert_industries : ""
-    industries ||--o{ expert_industries : ""
-    expert_profiles ||--o{ availability_slots : ""
-    users ||--o{ bookings : ""
-    expert_profiles ||--o{ bookings : ""
+    industries ||--o{ expert_profiles : ""
+    expert_profiles ||--o{ expert_profile_skills : ""
+    skills ||--o{ expert_profile_skills : ""
     availability_slots ||--o| bookings : ""
     bookings ||--o| interview_sessions : ""
     interview_sessions ||--o| interview_analysis : ""
