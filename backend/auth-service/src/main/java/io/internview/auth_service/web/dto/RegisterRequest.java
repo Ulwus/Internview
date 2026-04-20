@@ -17,27 +17,27 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @JsonCreator(mode = JsonCreator.Mode.PROPERTIES))
 public class RegisterRequest {
 
-	@NotBlank
-	@Email
+	@NotBlank(message = "email zorunlu")
+	@Email(message = "geçerli bir email adresi giriniz")
 	@JsonProperty("email")
 	private final String email;
 
-	@NotBlank
-	@Size(min = 8, max = 128)
+	@NotBlank(message = "password zorunlu")
+	@Size(min = 8, max = 128, message = "password 8 ile 128 karakter arasında olmalı")
 	@JsonProperty("password")
 	private final String password;
 
-	@NotBlank
-	@Size(max = 100)
+	@NotBlank(message = "first_name zorunlu")
+	@Size(max = 100, message = "first_name en fazla 100 karakter olabilir")
 	@JsonProperty("first_name")
 	private final String firstName;
 
-	@NotBlank
-	@Size(max = 100)
+	@NotBlank(message = "last_name zorunlu")
+	@Size(max = 100, message = "last_name en fazla 100 karakter olabilir")
 	@JsonProperty("last_name")
 	private final String lastName;
 
-	@NotNull
+	@NotNull(message = "role zorunlu")
 	@JsonProperty("role")
 	private final UserRole role;
 }

@@ -14,12 +14,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @JsonCreator(mode = JsonCreator.Mode.PROPERTIES))
 public class LoginRequest {
 
-	@NotBlank
-	@Email
+	@NotBlank(message = "email zorunlu")
+	@Email(message = "geçerli bir email adresi giriniz")
 	@JsonProperty("email")
 	private final String email;
 
-	@NotBlank
+	@NotBlank(message = "password zorunlu")
 	@JsonProperty("password")
 	private final String password;
 }
