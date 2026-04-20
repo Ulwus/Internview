@@ -2,8 +2,10 @@ package io.internview.booking_service;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 
 @SpringBootTest
+@Import(TestBookingLockConfig.class)
 class BookingServiceApplicationTests {
 
 	@Test
