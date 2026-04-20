@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @JsonCreator(mode = JsonCreator.Mode.PROPERTIES))
 public class RefreshRequest {
 
-	@NotBlank
+	@NotBlank(message = "refresh_token zorunlu")
 	@JsonProperty("refresh_token")
 	private final String refreshToken;
 }
