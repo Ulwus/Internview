@@ -24,3 +24,9 @@ tmp/
 temp/
 logs/
 *.log
+
+# Docker runtime volumes
+infrastructure/postgres/data/
+infrastructure/redis/data/
+infrastructure/kafka/data/
+infrastructure/consul/data/

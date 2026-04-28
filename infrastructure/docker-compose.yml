@@ -27,7 +27,7 @@ services:
       - ${DOCKER_NETWORK:-internview-net}
 
   kafka:
-    image: bitnami/kafka:3.7
+    image: bitnamilegacy/kafka:3.7
     container_name: internview-kafka
     environment:
       KAFKA_CFG_NODE_ID: 1
