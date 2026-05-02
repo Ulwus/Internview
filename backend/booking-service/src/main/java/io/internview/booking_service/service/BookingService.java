@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import io.internview.booking_service.domain.AvailabilitySlot;
 import io.internview.booking_service.domain.Booking;
 import io.internview.booking_service.domain.BookingStatus;
+import io.internview.booking_service.events.BookingCreatedDomainEvent;
 import io.internview.booking_service.error.BookingNotFoundException;
 import io.internview.booking_service.error.InvalidBookingStateException;
 import io.internview.booking_service.error.InvalidSlotException;
@@ -35,6 +37,7 @@ public class BookingService {
 	private final BookingRepository bookingRepository;
 	private final AvailabilitySlotRepository slotRepository;
 	private final BookingLockService lockService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public BookingResponse createBooking(UUID candidateId, CreateBookingRequest request) {
@@ -69,6 +72,15 @@ public class BookingService {
 
 		slot.setBooked(true);
 		this.slotRepository.save(slot);
+
+		this.eventPublisher.publishEvent(new BookingCreatedDomainEvent(
+			saved.getId(),
+			saved.getCandidateId(),
+			saved.getExpertId(),
+			saved.getSlotId(),
+			saved.getScheduledStart(),
+			saved.getStatus().name()
+		));
 
 		return BookingResponse.from(saved);
 	}
