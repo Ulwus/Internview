@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import io.internview.booking_service.domain.AvailabilitySlot;
 import io.internview.booking_service.domain.Booking;
@@ -50,6 +51,9 @@ class BookingServiceTest {
 
 	@Mock
 	private BookingLockService lockService;
+
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private BookingService bookingService;

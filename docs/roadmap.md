@@ -142,11 +142,11 @@ gantt
 
 #### Hafta 7 — Kafka Event Sistemi
 
-- [ ] Spring Kafka Producer yapılandırması
-- [ ] Spring Kafka Consumer yapılandırması
-- [ ] `BookingCreatedEvent` topic ve handler
-- [ ] `InterviewCompletedEvent` topic ve handler
-- [ ] Event serialization/deserialization (JSON)
+- [X] Spring Kafka Producer yapılandırması
+- [X] Spring Kafka Consumer yapılandırması
+- [X] `BookingCreatedEvent` topic ve handler
+- [X] `InterviewCompletedEvent` topic ve handler
+- [X] Event serialization/deserialization (JSON)
 
 ---
 
