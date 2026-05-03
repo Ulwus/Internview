@@ -28,6 +28,7 @@ public class SecurityConfig {
 		http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 		http.authorizeHttpRequests(auth -> auth
 			.requestMatchers("/actuator/health", "/actuator/info").permitAll()
+			.requestMatchers("/ws/signaling/**").permitAll()
 			.anyRequest().authenticated());
 		http.oauth2ResourceServer(oauth2 -> oauth2
 			.jwt(jwt -> jwt.decoder(this.jwtDecoder).jwtAuthenticationConverter(this.jwtAuthenticationConverter)));
