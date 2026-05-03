@@ -160,12 +160,12 @@ gantt
 
 #### Hafta 8 — WebRTC Signaling Server
 
-- [ ] Spring WebSocket sunucusu kurulumu
-- [ ] Oda (room) yönetimi
-- [ ] Redis ile oda state paylaşımı
-- [ ] SDP Offer/Answer mesaj taşıma
-- [ ] ICE Candidate mesaj taşıma
-- [ ] WebSocket bağlantı testleri
+- [X] Spring WebSocket sunucusu kurulumu
+- [X] Oda (room) yönetimi
+- [X] Redis ile oda state paylaşımı
+- [X] SDP Offer/Answer mesaj taşıma
+- [X] ICE Candidate mesaj taşıma
+- [X] WebSocket bağlantı testleri
 
 #### Hafta 9 — TURN/STUN Kurulumu
 

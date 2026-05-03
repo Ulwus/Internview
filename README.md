@@ -49,7 +49,7 @@ Projenin tüm teknik tasarım dokümanları `docs/` klasöründe yer almaktadır
 | [Development Roadmap](docs/roadmap.md) | 14 haftalık geliştirme planı, milestone'lar, haftalık görevler ve risk analizi |
 
 ## Setup Guide
-Proje şu anda **Hafta 3 (API Gateway)**, **Hafta 4 (Auth Service)**, **Hafta 5 (User Service)**, **Hafta 6 (Booking Service)** ve **Hafta 7 (Kafka Event Sistemi)** aşamalarını tamamlamış durumdadır. Gateway tarafında route tanımları, basic authentication filter, rate limiting ve loglama; auth tarafında Spring Security, HS256 JWT (üretim/doğrulama), Flyway ile PostgreSQL şeması, `register` / `login` / `refresh` uçları ve rol tabanlı erişim (RBAC); user tarafında ise `User`, `ExpertProfile`, `Skill`, `Industry` domain modeli, JPA Specification tabanlı filtreleme + pagination ile `GET /experts`, `GET /experts/{id}`, `GET /experts/me`, `PUT /experts/me`, `GET|PUT /users/profile`, `GET /industries`, `GET /skills` uçları; booking tarafında `AvailabilitySlot` ve `Booking` domain modeli, `GET /availability/{expertId}` (public), `POST|GET|DELETE /experts/me/availability`, `POST /bookings` (Redis distributed lock ile çift rezervasyon koruması), `GET /bookings/{id}`, `GET /bookings/me/candidate`, `GET /bookings/me/expert`, `PATCH /bookings/{id}/status` uçları ve booking durum makinesi (PENDING → CONFIRMED → COMPLETED/CANCELLED) ile birlikte servis/controller slice testleri bulunmaktadır. Hafta 7 kapsamında ise Booking → Kafka (`booking-events`) ve Interview → Kafka (`interview-events`) event yayınları ile Interview Service tarafında `booking-events` tüketimi eklenmiştir. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
+Proje şu anda **Hafta 3 (API Gateway)** ile **Hafta 7 (Kafka Event Sistemi)** arası aşamaları ve **Hafta 8 (WebRTC Signaling)** temelini tamamlamış durumdadır. Gateway tarafında route tanımları, basic authentication filter, rate limiting ve loglama; auth tarafında Spring Security, HS256 JWT (üretim/doğrulama), Flyway ile PostgreSQL şeması, `register` / `login` / `refresh` uçları ve rol tabanlı erişim (RBAC); user tarafında ise `User`, `ExpertProfile`, `Skill`, `Industry` domain modeli, JPA Specification tabanlı filtreleme + pagination ile `GET /experts`, `GET /experts/{id}`, `GET /experts/me`, `PUT /experts/me`, `GET|PUT /users/profile`, `GET /industries`, `GET /skills` uçları; booking tarafında `AvailabilitySlot` ve `Booking` domain modeli, `GET /availability/{expertId}` (public), `POST|GET|DELETE /experts/me/availability`, `POST /bookings` (Redis distributed lock ile çift rezervasyon koruması), `GET /bookings/{id}`, `GET /bookings/me/candidate`, `GET /bookings/me/expert`, `PATCH /bookings/{id}/status` uçları ve booking durum makinesi (PENDING → CONFIRMED → COMPLETED/CANCELLED) ile birlikte servis/controller slice testleri bulunmaktadır. Hafta 7 kapsamında ise Booking → Kafka (`booking-events`) ve Interview → Kafka (`interview-events`) event yayınları ile Interview Service tarafında `booking-events` tüketimi eklenmiştir. Hafta 8 ile Interview Service üzerinde Spring WebSocket tabanlı signaling (`/ws/signaling/{roomId}`), el sıkışmada JWT (Bearer veya `?token=`), Redis oda durumu, SDP/ICE mesaj yönlendirme ve `GET /sessions/booking/{bookingId}` ile istemciye `signalingWebSocketUrl` dönüşü sağlanır; gateway’e `/ws/signaling/**` rotası eklenmiştir. İstemci tarafında kullanılacak WebSocket tabanı için Interview Service ortam değişkeni `INTERVIEW_SIGNALING_WS_BASE_URL` (varsayılan `ws://localhost:8080`) kullanılabilir. Geliştirme ortamı Docker Compose ile PostgreSQL, Redis, Kafka ve Consul servislerini tek komutla ayağa kaldıracak şekilde yapılandırılmıştır. Klasör iskeleti aşağıdaki gibidir:
 
 ```text
 internview
@@ -211,4 +211,15 @@ curl -s -X POST http://localhost:8080/auth/login \
 Korumalı örnek uçlar (doğrudan auth servisine, Bearer token ile): `GET http://localhost:8081/me`, `GET http://localhost:8081/admin/ping` (yalnızca `ADMIN` rolü).
 
 **Testler:** `cd backend/auth-service && ./mvnw test` — CI ortamında Docker yoksa `test` profili H2 bellek veritabanı kullanır; gerçek PostgreSQL + Flyway akışı için altyapıyı Docker ile ayağa kaldırıp servisi `default` profille çalıştırın.
+
+#### 6. Interview Service — WebSocket signaling entegrasyon testi (Hafta 8)
+
+İki istemcili signaling doğrulaması (`SignalingWebSocketIntegrationTest`) gerçek bir Redis örneğine bağlanır (Testcontainers kullanılmaz). Önce altyapıda Redis’i ayağa kaldırın, sonra:
+
+```bash
+cd infrastructure && docker compose up -d redis
+cd ../backend/interview-service && ./mvnw test -Dtest=SignalingWebSocketIntegrationTest
+```
+
+Redis kapalıysa test sınıfı JUnit `Assumptions` ile atlanır. Adres için `REDIS_HOST` / `REDIS_PORT` ortam değişkenlerini kullanabilirsiniz (varsayılan `localhost:6379`).
 
