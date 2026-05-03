@@ -19,6 +19,7 @@ import io.internview.interview_service.repository.InterviewSessionRepository;
 @TestPropertySource(properties = {
 	"spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
 	"internview.kafka.topics.booking-events=booking-events",
+	"spring.kafka.listener.auto-startup=true",
 	"spring.flyway.enabled=false",
 	"spring.jpa.hibernate.ddl-auto=create-drop",
 	"spring.datasource.url=jdbc:h2:mem:interview;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
