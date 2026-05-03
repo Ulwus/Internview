@@ -3,8 +3,10 @@ package io.internview.interview_service.service;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import io.internview.interview_service.domain.InterviewSession;
 import io.internview.interview_service.events.InterviewCompletedDomainEvent;
@@ -36,6 +38,17 @@ public class InterviewSessionService {
 			.status("SCHEDULED")
 			.build();
 		this.repository.save(session);
+	}
+
+	@Transactional(readOnly = true)
+	public InterviewSession getByBookingForParticipant(UUID bookingId, UUID userId) {
+		InterviewSession session = this.repository.findByBookingId(bookingId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mülakat oturumu bulunamadı."));
+
+		if (!session.getCandidateId().equals(userId) && !session.getExpertId().equals(userId)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu oturuma erişim yetkiniz yok.");
+		}
+		return session;
 	}
 
 	@Transactional
