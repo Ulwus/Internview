@@ -4,7 +4,7 @@
 
 Internview'in domain modeli, bir adayın platforma kaydolmasından, uzman ile mülakat yapıp AI destekli performans raporu almasına kadarki tüm iş sürecini kapsayan entity'lerden oluşur.
 
-> **Not:** Bu döküman mevcut koddaki implementasyonu yansıtır. `InterviewSession` ve `InterviewAnalysis` entity'leri roadmap'te **planlanan** olarak işaretlidir ve henüz implemente edilmemiştir; bu bölümler ileride hayata geçecek tasarımı gösterir.
+> **Not:** Bu döküman mümkün olduğunca mevcut koddaki implementasyonu yansıtır. **`InterviewSession`** `interview-service` içinde **implemente edilmiştir** (Kafka `BookingCreatedEvent` sonrası oturum kaydı, WebRTC signaling için `id` = oda kimliği). **`InterviewAnalysis`** ve tam AI pipeline **henüz yoktur**; aşağıdaki ilgili bölümler hedef tasarımı gösterir.
 
 ### Ana Kavramlar (Bounded Contexts)
 
@@ -25,9 +25,9 @@ graph LR
         Booking["Booking"]
     end
 
-    subgraph "Interview & Analysis (planlanan)"
-        InterviewSession["Interview Session"]
-        InterviewAnalysis["Interview Analysis"]
+    subgraph interviewCtx [Interview service]
+        InterviewSession["Interview Session (mevcut)"]
+        InterviewAnalysis["Interview Analysis (planlanan)"]
     end
 
     User --> ExpertProfile
@@ -151,19 +151,24 @@ Aday ile uzman arasındaki randevuyu temsil eder. Slot başlangıç/bitiş zaman
 
 **Kod referansı:** `backend/booking-service/.../domain/Booking.java`, `BookingStatus.java`
 
-### InterviewSession *(planlanan — henüz implemente edilmedi)*
+### InterviewSession *(interview-service — mevcut)*
 
-Bir randevunun gerçekleşen mülakat oturumunu temsil eder.
+Bir randevuya karşılık gelen mülakat oturum kaydını temsil eder. Oturum, `booking-events` üzerinden `BOOKING_CREATED` ile tetiklenen akışta oluşturulur. **Signaling “oda” kimliği** `interview_sessions.id` ile aynıdır; kalıcı bir `room_url` sütunu yoktur — istemciye verilen WebSocket adresi `internview.signaling.ws-base-url` + `/ws/signaling/{sessionId}` ile üretilir (bkz. API Design §4.9).
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
-| `id` | `UUID` | Primary Key |
-| `booking_id` | `UUID` | FK → `bookings.id` (One-to-One) |
-| `room_url` | `TEXT` | WebRTC oda bağlantı adresi |
-| `start_time` | `TIMESTAMP` | Oturum başlangıç zamanı |
-| `end_time` | `TIMESTAMP` | Oturum bitiş zamanı |
-| `recorded_video_url` | `TEXT` | S3'teki video kaydının URL'i |
-| `status` | `ENUM` | `WAITING` → `IN_PROGRESS` → `COMPLETED` |
+| `id` | `UUID` | Primary Key; WebRTC signaling `roomId` |
+| `booking_id` | `UUID` | İlişkili randevu `bookings.id` (cross-service mantıksal One-to-One; DB FK yok) |
+| `candidate_id` | `UUID` | Aday `users.id` (cross-service) |
+| `expert_id` | `UUID` | Uzman `users.id` (cross-service) |
+| `scheduled_time` | `TIMESTAMPTZ` | Randevu zamanı snapshot |
+| `status` | `VARCHAR(32)` | Örn. `SCHEDULED`; tamamlama akışında güncellenir |
+| `created_at` | `TIMESTAMPTZ` | Oluşturulma |
+| `updated_at` | `TIMESTAMPTZ` | Son güncelleme |
+
+**Kod / şema:** `backend/interview-service/.../domain/InterviewSession.java`, `db/migration/V1__interview_schema.sql`
+
+> **Not:** Video kaydı URL’si ve süre gibi alanlar ileride genişletilebilir; şu an tamamlama API’si (`POST .../complete`) gövdesinde iletilir ve `InterviewCompletedEvent` payload’ına yansır.
 
 ### InterviewAnalysis *(planlanan — henüz implemente edilmedi)*
 
@@ -226,7 +231,7 @@ erDiagram
 | User ↔ Booking (candidate) | One-to-Many | Aday birden fazla randevu oluşturabilir |
 | User ↔ Booking (expert) | One-to-Many | Uzman birden fazla randevu alabilir |
 | AvailabilitySlot ↔ Booking | One-to-One | `slot_id` unique — bir slot yalnızca bir booking'e atanır |
-| Booking ↔ InterviewSession | One-to-One | *(planlanan)* Her randevu bir mülakat oturumuna karşılık gelir |
+| Booking ↔ InterviewSession | One-to-One | `booking_id` unique — her randevu en fazla bir oturum kaydına mantıksal olarak bağlanır (servisler arası) |
 | InterviewSession ↔ InterviewAnalysis | One-to-One | *(planlanan)* Her oturum bir AI analiz raporu üretir |
 
 > **Cross-Service Referanslar:** `availability_slots.expert_id`, `bookings.candidate_id` ve `bookings.expert_id` alanları **farklı servislerin veritabanlarındaki** `users.id`'yi işaret eder; veritabanı seviyesinde FK constraint yoktur. Bütünlük kontrolü uygulama katmanında yapılır (ör. booking oluştururken uzmanın varlığı `user-service`'e HTTP çağrısı ile doğrulanır).
@@ -235,7 +240,7 @@ erDiagram
 
 ## 3.4 ER Diagram
 
-Aşağıdaki diyagram mevcut koddaki tablo temsillerini ve aralarındaki ilişkileri göstermektedir. Planlanan entity'ler *italik* olarak işaretlidir.
+Aşağıdaki diyagram mevcut koddaki tablo temsillerini ve aralarındaki ilişkileri göstermektedir. `interview_sessions` **interview-service** veritabanındadır; `interview_analysis` henüz implemente edilmemiş hedef şemayı gösterir.
 
 ```mermaid
 erDiagram
@@ -312,12 +317,13 @@ erDiagram
 
     interview_sessions {
         UUID id PK
-        UUID booking_id FK
-        TEXT room_url
-        TIMESTAMP start_time
-        TIMESTAMP end_time
-        TEXT recorded_video_url
-        ENUM status
+        UUID booking_id UK
+        UUID candidate_id
+        UUID expert_id
+        TIMESTAMPTZ scheduled_time
+        VARCHAR status
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
     }
 
     interview_analysis {

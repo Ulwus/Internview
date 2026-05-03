@@ -494,7 +494,7 @@ Randevunun durumunu günceller. Geçerli değerler: `PENDING`, `CONFIRMED`, `COM
 
 ## 4.8 Interview API *(planlanan — henüz implemente edilmedi)*
 
-> Aşağıdaki endpoint'ler roadmap Week 7 (Interview Service + WebRTC) kapsamında hayata geçecektir. Henüz kodda karşılığı yoktur.
+> Aşağıdaki `POST /interviews/{bookingId}/start` vb. uçlar roadmap tasarımıdır; oturum özeti ve signaling adresi için **§4.9** ve `GET /sessions/booking/{bookingId}` kullanılmaktadır.
 
 **Service:** Interview Service
 **Gateway Base Path:** `/interviews`
@@ -556,6 +556,39 @@ Mülakat tamamlandıktan sonra AI analiz raporunu getirir.
   }
 }
 ```
+
+---
+
+## 4.9 WebRTC Signaling *(Interview Service)*
+
+**Gateway:** `GET` istekleri `/interviews/**` üzerinden Interview Service’e gider (strip prefix). WebSocket upgrade için gateway’de `/ws/signaling/**` rotası tanımlıdır ve Interview Service’e proxy edilir.
+
+### GET /sessions/booking/{bookingId}
+
+Katılımcının (`JWT.sub`) randevuya bağlı mülakat oturumunu ve istemci için WebSocket signaling adresini döner.
+
+**Kimlik:** Oturum sahibi aday veya uzman (`candidate_id` / `expert_id` ile `sub` eşleşmeli).
+
+**Response (200 OK):**
+```json
+{
+  "sessionId": "990e8400-e29b-41d4-a716-446655440004",
+  "bookingId": "880e8400-e29b-41d4-a716-446655440003",
+  "candidateId": "...",
+  "expertId": "...",
+  "status": "SCHEDULED",
+  "signalingWebSocketUrl": "ws://localhost:8080/ws/signaling/990e8400-e29b-41d4-a716-446655440004"
+}
+```
+
+`signalingWebSocketUrl`, `internview.signaling.ws-base-url` (ör. `INTERVIEW_SIGNALING_WS_BASE_URL`) ile üretilir; sonuna `/ws/signaling/{sessionId}` eklenir.
+
+### WebSocket `/ws/signaling/{roomId}`
+
+- **roomId:** `interview_sessions.id` (UUID).
+- **JWT:** İstemci bağlantı sırasında `Authorization: Bearer <token>` veya sorgu parametresi `?token=<jwt>` ile aynı HS256 kaynak sunucu JWT’sini iletir; doğrulama başarısızsa bağlantı reddedilir.
+- **Mesaj gövdesi:** JSON; kök alan `type` ile çok biçimli tipler: `OFFER`, `ANSWER`, `ICE_CANDIDATE`, `LEAVE_ROOM`, sunucu tarafında ayrıca `ROOM_JOINED`, `PEER_JOINED`, `PEER_LEFT`, `ERROR`.
+- **Offer/Answer/ICE:** İstemci `targetUserId` ile hedef eşi belirtir; sunucu iletirken `fromUserId` ile gönderen bilgisini korur.
 
 ---
 
