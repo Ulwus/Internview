@@ -1,5 +1,6 @@
 package io.internview.interview_service.web.dto;
 
+import java.util.List;
 import java.util.UUID;
 
 import lombok.Builder;
@@ -11,6 +12,7 @@ public record SessionSummaryResponse(
 	UUID candidateId,
 	UUID expertId,
 	String status,
-	String signalingWebSocketUrl
+	String signalingWebSocketUrl,
+	List<IceServer> iceServers
 ) {
 }
