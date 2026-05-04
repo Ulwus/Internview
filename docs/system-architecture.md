@@ -262,7 +262,7 @@ graph LR
 
 | Ortam | Araç | Açıklama |
 |-------|------|----------|
-| **Lokal Geliştirme** | Docker Compose | PostgreSQL, Redis, Kafka ve tüm servislerin tek komutla ayağa kaldırılması |
+| **Lokal Geliştirme** | Docker Compose | PostgreSQL, Redis, Kafka, Coturn ve tüm backend servislerin tek komutla ayağa kaldırılması |
 | **Versiyon Kontrol** | Git + GitHub | Branch stratejisi, PR review süreci |
 | **CI/CD** | GitHub Actions | Otomatik build, test ve deployment pipeline |
 | **Cloud** | AWS (EC2, S3, VPC) | Production ortamı, VPC izolasyonu, Security Groups ile ağ güvenliği |

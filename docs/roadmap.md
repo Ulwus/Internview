@@ -55,7 +55,7 @@ gantt
 |---|---|
 | **Süre** | Hafta 1 – 2 (2 hafta) |
 | **Amaç** | Projenin iskelet yapısının oluşturulması, teknik dokümantasyonun tamamlanması ve geliştirme ortamının konteynerize edilmesi. |
-| **Çıktılar** | Skeleton Spring Boot backend, Next.js web, Flutter mobile projeleri. Monorepo klasör iskeleti. Tüm teknik dokümanlar. Docker Compose ile PostgreSQL, Redis, Kafka (KRaft), Consul altyapısı. |
+| **Çıktılar** | Skeleton Spring Boot backend, Next.js web, Flutter mobile projeleri. Monorepo klasör iskeleti. Tüm teknik dokümanlar. Docker Compose ile PostgreSQL, Redis, Kafka (KRaft), Consul, Coturn altyapısı. |
 
 #### Hafta 1 — Proje Kurulumu ve Dokümantasyon
 
@@ -169,11 +169,11 @@ gantt
 
 #### Hafta 9 — TURN/STUN Kurulumu
 
-- [ ] Coturn Docker container yapılandırması
-- [ ] STUN server konfigürasyonu
-- [ ] TURN server konfigürasyonu (credential management)
-- [ ] Farklı ağ koşullarında bağlantı testleri
-- [ ] Mobil ağ (4G/5G) simülasyonu testleri
+- [X] Coturn Docker container yapılandırması
+- [X] STUN server konfigürasyonu
+- [X] TURN server konfigürasyonu (credential management)
+- [X] Farklı ağ koşullarında bağlantı testleri
+- [X] Mobil ağ (4G/5G) simülasyonu testleri
 
 #### Hafta 10 — Media Server
 
