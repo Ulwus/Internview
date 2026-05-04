@@ -159,7 +159,7 @@ Internview'in teknoloji seçimleri üç temel prensibe dayanmaktadır:
 | Kriter | Detay |
 |--------|-------|
 | **Neden Seçildi?** | Her servisi izole container olarak paketler. "Bende çalışıyor" problemini ortadan kaldırır. |
-| **Docker Compose** | Lokal geliştirmede tüm bağımlılıkların (DB, Redis, Kafka) tek komutla ayağa kaldırılması |
+| **Docker Compose** | Lokal geliştirmede tüm altyapı (DB, Redis, Kafka, Coturn) ve backend servislerinin tek komutla ayağa kaldırılması |
 | **Image Standardization** | Servisler arasında tutarlı build ve runtime ortamı |
 
 ### AWS (Amazon Web Services)

@@ -513,8 +513,12 @@ Randevu saati gelmiş olan oturumu başlatır. `interview_sessions` tablosuna ka
     "roomUrl": "wss://media.internview.io/room/abc123",
     "webrtcConfig": {
       "iceServers": [
-        { "urls": "stun:stun.internview.io:3478" },
-        { "urls": "turn:turn.internview.io:3478", "username": "user", "credential": "pass" }
+        { "urls": "stun:coturn:3478" },
+        {
+          "urls": "turn:coturn:3478",
+          "username": "<unix_timestamp>:<user_id>",
+          "credential": "<hmac_sha1_base64>"
+        }
       ]
     },
     "status": "IN_PROGRESS",
@@ -577,7 +581,15 @@ Katılımcının (`JWT.sub`) randevuya bağlı mülakat oturumunu ve istemci iç
   "candidateId": "...",
   "expertId": "...",
   "status": "SCHEDULED",
-  "signalingWebSocketUrl": "ws://localhost:8080/ws/signaling/990e8400-e29b-41d4-a716-446655440004"
+  "signalingWebSocketUrl": "ws://localhost:8080/ws/signaling/990e8400-e29b-41d4-a716-446655440004",
+  "iceServers": [
+    { "urls": "stun:coturn:3478" },
+    {
+      "urls": "turn:coturn:3478",
+      "username": "1714827600:550e8400-...",
+      "credential": "<hmac_sha1_base64>"
+    }
+  ]
 }
 ```
 

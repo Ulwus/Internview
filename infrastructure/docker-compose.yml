@@ -141,6 +141,19 @@ services:
     networks:
       - ${DOCKER_NETWORK:-internview-net}
 
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    container_name: internview-coturn
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "49152-49252:49152-49252/udp"
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+    restart: unless-stopped
+
   interview-service:
     build:
       context: ../backend/interview-service
@@ -155,12 +168,15 @@ services:
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      TURN_SECRET: ${TURN_SECRET:-internview_turn_secret}
+      TURN_HOST: coturn
     ports:
       - "8083:8083"
     depends_on:
       - postgres
       - redis
       - kafka
+      - coturn
     networks:
       - ${DOCKER_NETWORK:-internview-net}
 
