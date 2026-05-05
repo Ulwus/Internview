@@ -29,7 +29,7 @@ gantt
     section İP-4: Gerçek Zamanlı Video Altyapısı
     WebRTC Signaling Server :w8, after w7, 7d
     TURN / STUN Kurulumu :w9, after w8, 7d
-    Media Server (Mediasoup) :w10, after w9, 7d
+    Media Service (Mediasoup SFU) :w10, after w9, 7d
     milestone İP-4 Tamamlandı :m4, after w10, 0d
 
     section İP-5: Yapay Zeka Konuşma Analizi
@@ -175,13 +175,13 @@ gantt
 - [X] Farklı ağ koşullarında bağlantı testleri
 - [X] Mobil ağ (4G/5G) simülasyonu testleri
 
-#### Hafta 10 — Media Server
+#### Hafta 10 — Media Service
 
-- [ ] Mediasoup (SFU) sunucu kurulumu
-- [ ] Producer/Consumer transport yönetimi
-- [ ] Video/audio stream yönlendirme
-- [ ] Server-side recording implementasyonu
-- [ ] S3'e video upload pipeline
+- [X] Mediasoup (SFU) Node.js sunucu kurulumu
+- [X] Producer/Consumer transport yönetimi
+- [X] Video/audio stream yönlendirme
+- [X] Server-side recording implementasyonu
+- [X] MinIO (Local S3) / AWS S3'e video upload pipeline
 
 ---
 
