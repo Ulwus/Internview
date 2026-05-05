@@ -47,7 +47,7 @@ graph TD
 
     subgraph "Real-Time Layer"
         SignalingServer["📡 Signaling Server<br/>Spring WebSocket"]
-        MediaServer["🎥 Mediasoup SFU"]
+        MediaService["🎥 Mediasoup SFU<br/>Node.js"]
         TurnServer["🔄 Coturn STUN/TURN"]
     end
 
@@ -55,7 +55,7 @@ graph TD
         PostgreSQL["🐘 PostgreSQL"]
         Redis["⚡ Redis"]
         Kafka["📨 Apache Kafka"]
-        S3["☁️ AWS S3"]
+        S3["☁️ MinIO / AWS S3"]
     end
 
     MobileApp -->|HTTPS / WSS| Gateway
@@ -79,13 +79,13 @@ graph TD
     InterviewService -.-> Redis
     SignalingServer -.-> Redis
 
-    MobileApp -->|WebRTC| MediaServer
-    WebApp -->|WebRTC| MediaServer
+    MobileApp -->|WebRTC| MediaService
+    WebApp -->|WebRTC| MediaService
     MobileApp -.->|ICE| TurnServer
     WebApp -.->|ICE| TurnServer
 
     AIService -.-> S3
-    MediaServer -.-> S3
+    MediaService -.-> S3
 ```
 
 ### Katman Açıklamaları
@@ -94,8 +94,8 @@ graph TD
 |--------|-----------|-------------|
 | **Client Layer** | Kullanıcı arayüzü, WebRTC peer bağlantısı | Flutter, Next.js, React |
 | **Backend Layer** | İş mantığı, kimlik doğrulama, veri yönetimi | Spring Boot, Spring Cloud, Java 21 |
-| **Real-Time Layer** | Video/ses iletimi, sinyal sunucusu, NAT traversal | WebRTC, Mediasoup, Coturn |
-| **Data Layer** | Kalıcı depolama, önbellekleme, olay akışı | PostgreSQL, Redis, Kafka, S3 |
+| **Real-Time Layer** | Video/ses iletimi, sinyal sunucusu, NAT traversal | WebRTC, Node.js, Mediasoup, Coturn |
+| **Data Layer** | Kalıcı depolama, önbellekleme, olay akışı | PostgreSQL, Redis, Kafka, MinIO, S3 |
 
 ---
 

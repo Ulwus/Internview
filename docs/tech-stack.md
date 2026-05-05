@@ -16,9 +16,9 @@ Internview'in teknoloji seçimleri üç temel prensibe dayanmaktadır:
 | **Database** | PostgreSQL |
 | **Cache & Lock** | Redis |
 | **Event Streaming** | Apache Kafka (KRaft Mode) |
-| **Real-Time Video** | WebRTC + Mediasoup (SFU) + Coturn (STUN/TURN) |
+| **Real-Time Video** | WebRTC + Mediasoup (SFU) + Node.js + Coturn (STUN/TURN) |
 | **AI & Speech** | Python + OpenAI Whisper |
-| **Infrastructure** | AWS (EC2, S3, VPC) + Docker + GitHub Actions |
+| **Infrastructure** | MinIO (Local S3) + AWS (EC2, S3, VPC) + Docker + GitHub Actions |
 
 ---
 
@@ -166,9 +166,9 @@ Internview'in teknoloji seçimleri üç temel prensibe dayanmaktadır:
 
 | Kriter | Detay |
 |--------|-------|
-| **Neden Seçildi?** | Global ölçekli, güvenilir cloud altyapısı. |
+| **Neden Seçildi?** | Global ölçekli, güvenilir cloud altyapısı. Lokal geliştirme için S3 yerine **MinIO** kullanılır. |
 | **EC2** | Servis container'larının çalıştırılması |
-| **S3** | Video kayıtları ve statik dosya depolaması |
+| **S3 / MinIO** | Video kayıtları ve statik dosya depolaması |
 | **VPC + Security Groups** | Network izolasyonu ve erişim kontrolleri |
 
 ### GitHub Actions
