@@ -11,15 +11,20 @@ import org.springframework.web.server.ResponseStatusException;
 import io.internview.interview_service.domain.InterviewSession;
 import io.internview.interview_service.events.InterviewCompletedDomainEvent;
 import io.internview.interview_service.kafka.BookingCreatedPayload;
+import io.internview.interview_service.media.MediaServiceClient;
+import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStopResponse;
 import io.internview.interview_service.repository.InterviewSessionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InterviewSessionService {
 
 	private final InterviewSessionRepository repository;
 	private final ApplicationEventPublisher eventPublisher;
+	private final MediaServiceClient mediaServiceClient;
 
 	@Transactional
 	public void ensureSessionForBookingCreated(BookingCreatedPayload payload) {
@@ -37,7 +42,16 @@ public class InterviewSessionService {
 			.scheduledTime(payload.getScheduledTime())
 			.status("SCHEDULED")
 			.build();
-		this.repository.save(session);
+		InterviewSession saved = this.repository.save(session);
+
+		// Mediasoup room oluştur
+		try {
+			this.mediaServiceClient.createRoom(saved.getId().toString());
+			log.info("Mediasoup room oluşturuldu: sessionId={}", saved.getId());
+		}
+		catch (Exception ex) {
+			log.warn("Mediasoup room oluşturulamadı (daha sonra tekrar denenebilir): {}", ex.getMessage());
+		}
 	}
 
 	@Transactional(readOnly = true)
@@ -56,6 +70,28 @@ public class InterviewSessionService {
 		InterviewSession session = this.repository.findByBookingId(bookingId)
 			.orElseThrow(() -> new IllegalArgumentException("Görüşme oturumu bulunamadı: bookingId=" + bookingId));
 
+		// Recording aktifse durdur ve S3 URL'sini al
+		String finalVideoUrl = recordedVideoUrl;
+		try {
+			RecordingStopResponse recordingResponse = this.mediaServiceClient
+				.stopRecording(session.getId().toString());
+			if (recordingResponse != null && recordingResponse.getRecordedVideoUrl() != null) {
+				finalVideoUrl = recordingResponse.getRecordedVideoUrl();
+				log.info("Recording durduruldu, S3 URL: {}", finalVideoUrl);
+			}
+		}
+		catch (Exception ex) {
+			log.warn("Recording durdurma başarısız (muhtemelen aktif değildi): {}", ex.getMessage());
+		}
+
+		// Mediasoup room'u kapat
+		try {
+			this.mediaServiceClient.closeRoom(session.getId().toString());
+		}
+		catch (Exception ex) {
+			log.warn("Mediasoup room kapatılamadı: {}", ex.getMessage());
+		}
+
 		session.setStatus("COMPLETED");
 		InterviewSession saved = this.repository.save(session);
 
@@ -65,10 +101,9 @@ public class InterviewSessionService {
 			saved.getCandidateId(),
 			saved.getExpertId(),
 			durationSeconds,
-			recordedVideoUrl
+			finalVideoUrl
 		));
 
 		return saved;
 	}
 }
-
