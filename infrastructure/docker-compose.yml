@@ -170,6 +170,7 @@ services:
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       TURN_SECRET: ${TURN_SECRET:-internview_turn_secret}
       TURN_HOST: coturn
+      MEDIA_SERVER_URL: http://media-server:3000
     ports:
       - "8083:8083"
     depends_on:
@@ -177,6 +178,70 @@ services:
       - redis
       - kafka
       - coturn
+      - media-service
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+
+  media-service:
+    build:
+      context: ../backend/media-service
+    container_name: internview-media-service
+    environment:
+      PORT: ${MEDIA_SERVER_PORT:-3000}
+      LOG_LEVEL: ${MEDIA_SERVER_LOG_LEVEL:-info}
+      MEDIASOUP_LISTEN_IP: 0.0.0.0
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-127.0.0.1}
+      MEDIASOUP_MIN_PORT: ${MEDIASOUP_MIN_PORT:-40000}
+      MEDIASOUP_MAX_PORT: ${MEDIASOUP_MAX_PORT:-40099}
+      MEDIASOUP_LOG_LEVEL: ${MEDIASOUP_LOG_LEVEL:-warn}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-internview-recordings}
+      S3_FORCE_PATH_STYLE: "true"
+    ports:
+      - "${MEDIA_SERVER_PORT:-3000}:${MEDIA_SERVER_PORT:-3000}"
+      - "${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}:${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}/udp"
+    depends_on:
+      - minio
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    container_name: internview-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./minio/data:/data
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+    restart: unless-stopped
+
+  # MinIO başlatıldığında varsayılan bucket oluşturur
+  minio-init:
+    image: minio/mc
+    container_name: internview-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin};
+      mc mb --ignore-existing local/$${S3_BUCKET:-internview-recordings};
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-internview-recordings}
     networks:
       - ${DOCKER_NETWORK:-internview-net}
 
