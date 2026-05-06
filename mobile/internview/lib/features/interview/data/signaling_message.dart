@@ -39,6 +39,14 @@ sealed class SignalingMessage {
         );
       case 'PEER_LEFT':
         return PeerLeftMessage(userId: j['userId'].toString());
+      case 'FINISH_REQUEST':
+        return FinishRequestMessage(fromUserId: _uuid(j['fromUserId']));
+      case 'FINISH_ACCEPT':
+        return FinishAcceptMessage(fromUserId: _uuid(j['fromUserId']));
+      case 'FINISH_REJECT':
+        return FinishRejectMessage(fromUserId: _uuid(j['fromUserId']));
+      case 'FINISH_DONE':
+        return FinishDoneMessage(fromUserId: _uuid(j['fromUserId']));
       case 'ERROR':
         return ErrorMessage(
           code: j['code'] as String? ?? 'ERROR',
@@ -126,6 +134,30 @@ class ErrorMessage extends SignalingMessage {
   final String message;
 }
 
+class FinishRequestMessage extends SignalingMessage {
+  FinishRequestMessage({this.fromUserId});
+
+  final String? fromUserId;
+}
+
+class FinishAcceptMessage extends SignalingMessage {
+  FinishAcceptMessage({this.fromUserId});
+
+  final String? fromUserId;
+}
+
+class FinishRejectMessage extends SignalingMessage {
+  FinishRejectMessage({this.fromUserId});
+
+  final String? fromUserId;
+}
+
+class FinishDoneMessage extends SignalingMessage {
+  FinishDoneMessage({this.fromUserId});
+
+  final String? fromUserId;
+}
+
 Map<String, dynamic> offerOut({required String targetUserId, required String sdp}) => {
       'type': 'OFFER',
       'targetUserId': targetUserId,
@@ -153,3 +185,23 @@ Map<String, dynamic> iceOut({
     };
 
 const Map<String, dynamic> leaveRoomOut = {'type': 'LEAVE_ROOM'};
+
+Map<String, dynamic> finishRequestOut({required String targetUserId}) => {
+      'type': 'FINISH_REQUEST',
+      'targetUserId': targetUserId,
+    };
+
+Map<String, dynamic> finishAcceptOut({required String targetUserId}) => {
+      'type': 'FINISH_ACCEPT',
+      'targetUserId': targetUserId,
+    };
+
+Map<String, dynamic> finishRejectOut({required String targetUserId}) => {
+      'type': 'FINISH_REJECT',
+      'targetUserId': targetUserId,
+    };
+
+Map<String, dynamic> finishDoneOut({required String targetUserId}) => {
+      'type': 'FINISH_DONE',
+      'targetUserId': targetUserId,
+    };
