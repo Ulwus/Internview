@@ -35,6 +35,12 @@ public class BookingResponse {
 	@JsonProperty("scheduledEnd")
 	Instant scheduledEnd;
 
+	@JsonProperty("expertRating")
+	Integer expertRating;
+
+	@JsonProperty("expertComment")
+	String expertComment;
+
 	public static BookingResponse from(Booking booking) {
 		return BookingResponse.builder()
 			.id(booking.getId())
@@ -44,6 +50,8 @@ public class BookingResponse {
 			.status(booking.getStatus())
 			.scheduledStart(booking.getScheduledStart())
 			.scheduledEnd(booking.getScheduledEnd())
+			.expertRating(booking.getExpertRating())
+			.expertComment(booking.getExpertComment())
 			.build();
 	}
 }

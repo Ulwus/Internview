@@ -1,6 +1,7 @@
 package io.internview.booking_service.service;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class AvailabilityService {
+
+	private static final long SLOT_MINUTES = 45;
 
 	private final AvailabilitySlotRepository slotRepository;
 
@@ -42,11 +45,13 @@ public class AvailabilityService {
 
 	@Transactional
 	public SlotResponse createSlot(UUID expertId, CreateSlotRequest request) {
-		validateRange(request.getStartTime(), request.getEndTime());
+		Instant start = request.getStartTime();
+		Instant end = start.plus(SLOT_MINUTES, ChronoUnit.MINUTES);
+		validateRange(start, end);
 		AvailabilitySlot slot = AvailabilitySlot.builder()
 			.expertId(expertId)
-			.startTime(request.getStartTime())
-			.endTime(request.getEndTime())
+			.startTime(start)
+			.endTime(end)
 			.booked(false)
 			.build();
 		return SlotResponse.from(this.slotRepository.save(slot));

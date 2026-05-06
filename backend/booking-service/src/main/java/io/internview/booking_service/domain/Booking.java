@@ -49,6 +49,12 @@ public class Booking {
 	@Column(name = "scheduled_end", nullable = false)
 	private Instant scheduledEnd;
 
+	@Column(name = "expert_rating")
+	private Integer expertRating;
+
+	@Column(name = "expert_comment")
+	private String expertComment;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 

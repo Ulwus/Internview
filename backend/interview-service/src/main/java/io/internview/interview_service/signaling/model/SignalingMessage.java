@@ -18,12 +18,18 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 	@JsonSubTypes.Type(value = SignalingMessage.RoomJoinedMessage.class, name = "ROOM_JOINED"),
 	@JsonSubTypes.Type(value = SignalingMessage.PeerJoinedMessage.class, name = "PEER_JOINED"),
 	@JsonSubTypes.Type(value = SignalingMessage.PeerLeftMessage.class, name = "PEER_LEFT"),
-	@JsonSubTypes.Type(value = SignalingMessage.ErrorMessage.class, name = "ERROR")
+	@JsonSubTypes.Type(value = SignalingMessage.ErrorMessage.class, name = "ERROR"),
+	@JsonSubTypes.Type(value = SignalingMessage.FinishRequestMessage.class, name = "FINISH_REQUEST"),
+	@JsonSubTypes.Type(value = SignalingMessage.FinishAcceptMessage.class, name = "FINISH_ACCEPT"),
+	@JsonSubTypes.Type(value = SignalingMessage.FinishRejectMessage.class, name = "FINISH_REJECT"),
+	@JsonSubTypes.Type(value = SignalingMessage.FinishDoneMessage.class, name = "FINISH_DONE")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public sealed interface SignalingMessage permits SignalingMessage.OfferMessage, SignalingMessage.AnswerMessage,
 	SignalingMessage.IceCandidateMessage, SignalingMessage.LeaveRoomMessage, SignalingMessage.RoomJoinedMessage,
-	SignalingMessage.PeerJoinedMessage, SignalingMessage.PeerLeftMessage, SignalingMessage.ErrorMessage {
+	SignalingMessage.PeerJoinedMessage, SignalingMessage.PeerLeftMessage, SignalingMessage.ErrorMessage,
+	SignalingMessage.FinishRequestMessage, SignalingMessage.FinishAcceptMessage, SignalingMessage.FinishRejectMessage,
+	SignalingMessage.FinishDoneMessage {
 
 	record OfferMessage(UUID targetUserId, UUID fromUserId, String sdp) implements SignalingMessage {
 	}
@@ -53,5 +59,17 @@ public sealed interface SignalingMessage permits SignalingMessage.OfferMessage, 
 	}
 
 	record ErrorMessage(String code, String message) implements SignalingMessage {
+	}
+
+	record FinishRequestMessage(UUID targetUserId, UUID fromUserId) implements SignalingMessage {
+	}
+
+	record FinishAcceptMessage(UUID targetUserId, UUID fromUserId) implements SignalingMessage {
+	}
+
+	record FinishRejectMessage(UUID targetUserId, UUID fromUserId) implements SignalingMessage {
+	}
+
+	record FinishDoneMessage(UUID targetUserId, UUID fromUserId) implements SignalingMessage {
 	}
 }

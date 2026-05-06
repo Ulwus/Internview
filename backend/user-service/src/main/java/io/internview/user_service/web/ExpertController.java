@@ -72,7 +72,7 @@ public class ExpertController {
 	@PreAuthorize("hasRole('EXPERT')")
 	public ApiResponse<ExpertDetailResponse> getOwnProfile(@AuthenticationPrincipal Jwt jwt) {
 		UUID userId = UUID.fromString(jwt.getSubject());
-		return ApiResponse.ok(this.expertService.getByUserId(userId));
+		return ApiResponse.ok(this.expertService.getOrCreateByUserId(userId));
 	}
 
 	@PutMapping("/me")

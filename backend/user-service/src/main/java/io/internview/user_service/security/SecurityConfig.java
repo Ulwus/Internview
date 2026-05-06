@@ -28,8 +28,9 @@ public class SecurityConfig {
 		http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 		http.authorizeHttpRequests(auth -> auth
 			.requestMatchers("/actuator/health", "/actuator/info").permitAll()
-			.requestMatchers(org.springframework.http.HttpMethod.GET, "/experts", "/experts/**", "/industries", "/skills").permitAll()
-			.anyRequest().authenticated());
+			// Kimlik doğrulamayı endpoint seviyesinde değil, method seviyesinde (@PreAuthorize) zorunlu kılıyoruz.
+			// Bu sayede public endpoint'ler (ör. GET /experts) token olmadan çalışır; korunanlar yine engellenir.
+			.anyRequest().permitAll());
 		http.oauth2ResourceServer(oauth2 -> oauth2
 			.jwt(jwt -> jwt.decoder(this.jwtDecoder).jwtAuthenticationConverter(this.jwtAuthenticationConverter)));
 		return http.build();

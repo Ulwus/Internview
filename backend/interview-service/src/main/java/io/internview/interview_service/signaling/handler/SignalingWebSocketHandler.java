@@ -64,6 +64,10 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
 				case SignalingMessage.OfferMessage offer -> this.roomService.handleOffer(roomId, userId, offer);
 				case SignalingMessage.AnswerMessage answer -> this.roomService.handleAnswer(roomId, userId, answer);
 				case SignalingMessage.IceCandidateMessage ice -> this.roomService.handleIceCandidate(roomId, userId, ice);
+				case SignalingMessage.FinishRequestMessage req -> this.roomService.handleFinishRequest(roomId, userId, req);
+				case SignalingMessage.FinishAcceptMessage acc -> this.roomService.handleFinishAccept(roomId, userId, acc);
+				case SignalingMessage.FinishRejectMessage rej -> this.roomService.handleFinishReject(roomId, userId, rej);
+				case SignalingMessage.FinishDoneMessage done -> this.roomService.handleFinishDone(roomId, userId, done);
 				case SignalingMessage.LeaveRoomMessage() -> session.close(CloseStatus.NORMAL);
 				case SignalingMessage.RoomJoinedMessage ignoredJoined -> this.sendError(session, "INVALID_MESSAGE",
 					"Bu mesaj tipi istemciden kabul edilmez.");

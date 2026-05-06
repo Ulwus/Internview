@@ -98,6 +98,46 @@ public class RoomService {
 		this.forwardToPeer(roomId, fromUserId, msg.targetUserId(), forward);
 	}
 
+	public void handleFinishRequest(UUID roomId, UUID fromUserId, SignalingMessage.FinishRequestMessage msg) throws IOException {
+		if (msg.targetUserId() == null) {
+			this.sendErrorTo(fromUserId, roomId, "INVALID_MESSAGE", "targetUserId gerekli");
+			return;
+		}
+		this.roomAuthorizer.assertParticipant(roomId, fromUserId);
+		SignalingMessage forward = new SignalingMessage.FinishRequestMessage(null, fromUserId);
+		this.forwardToPeer(roomId, fromUserId, msg.targetUserId(), forward);
+	}
+
+	public void handleFinishAccept(UUID roomId, UUID fromUserId, SignalingMessage.FinishAcceptMessage msg) throws IOException {
+		if (msg.targetUserId() == null) {
+			this.sendErrorTo(fromUserId, roomId, "INVALID_MESSAGE", "targetUserId gerekli");
+			return;
+		}
+		this.roomAuthorizer.assertParticipant(roomId, fromUserId);
+		SignalingMessage forward = new SignalingMessage.FinishAcceptMessage(null, fromUserId);
+		this.forwardToPeer(roomId, fromUserId, msg.targetUserId(), forward);
+	}
+
+	public void handleFinishReject(UUID roomId, UUID fromUserId, SignalingMessage.FinishRejectMessage msg) throws IOException {
+		if (msg.targetUserId() == null) {
+			this.sendErrorTo(fromUserId, roomId, "INVALID_MESSAGE", "targetUserId gerekli");
+			return;
+		}
+		this.roomAuthorizer.assertParticipant(roomId, fromUserId);
+		SignalingMessage forward = new SignalingMessage.FinishRejectMessage(null, fromUserId);
+		this.forwardToPeer(roomId, fromUserId, msg.targetUserId(), forward);
+	}
+
+	public void handleFinishDone(UUID roomId, UUID fromUserId, SignalingMessage.FinishDoneMessage msg) throws IOException {
+		if (msg.targetUserId() == null) {
+			this.sendErrorTo(fromUserId, roomId, "INVALID_MESSAGE", "targetUserId gerekli");
+			return;
+		}
+		this.roomAuthorizer.assertParticipant(roomId, fromUserId);
+		SignalingMessage forward = new SignalingMessage.FinishDoneMessage(null, fromUserId);
+		this.forwardToPeer(roomId, fromUserId, msg.targetUserId(), forward);
+	}
+
 	public void assertPayloadSize(byte[] payload) {
 		if (payload != null && payload.length > this.maxPayloadBytes) {
 			throw new SignalingException("PAYLOAD_TOO_LARGE", "Mesaj boyutu sınırı aşıldı.");
