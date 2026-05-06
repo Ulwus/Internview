@@ -100,37 +100,79 @@ class BookingRemoteDataSource {
   }
 
   Future<PageResponse<BookingDto>> listCandidateBookings({int page = 0, int size = 20}) async {
-    final r = await _dio.get<Map<String, dynamic>>(
-      '/bookings/me/candidate',
-      queryParameters: {'page': page, 'size': size},
-    );
-    return ApiEnvelope.parseData(
-      r.data,
-      (j) => PageResponse.fromJson(
-        Map<String, dynamic>.from(j! as Map),
-        (e) => BookingDto.fromJson(Map<String, dynamic>.from(e as Map)),
-      ),
-    );
+    try {
+      final r = await _dio.get<Map<String, dynamic>>(
+        '/bookings/me/candidate',
+        queryParameters: {'page': page, 'size': size},
+      );
+      return ApiEnvelope.parseData(
+        r.data,
+        (j) => PageResponse.fromJson(
+          Map<String, dynamic>.from(j! as Map),
+          (e) => BookingDto.fromJson(Map<String, dynamic>.from(e as Map)),
+        ),
+      );
+    } on DioException catch (e) {
+      throw _fromDio(e);
+    }
   }
 
   Future<PageResponse<BookingDto>> listExpertBookings({int page = 0, int size = 20}) async {
-    final r = await _dio.get<Map<String, dynamic>>(
-      '/bookings/me/expert',
-      queryParameters: {'page': page, 'size': size},
-    );
-    return ApiEnvelope.parseData(
-      r.data,
-      (j) => PageResponse.fromJson(
-        Map<String, dynamic>.from(j! as Map),
-        (e) => BookingDto.fromJson(Map<String, dynamic>.from(e as Map)),
-      ),
-    );
+    try {
+      final r = await _dio.get<Map<String, dynamic>>(
+        '/bookings/me/expert',
+        queryParameters: {'page': page, 'size': size},
+      );
+      return ApiEnvelope.parseData(
+        r.data,
+        (j) => PageResponse.fromJson(
+          Map<String, dynamic>.from(j! as Map),
+          (e) => BookingDto.fromJson(Map<String, dynamic>.from(e as Map)),
+        ),
+      );
+    } on DioException catch (e) {
+      throw _fromDio(e);
+    }
   }
 
   Future<BookingDto> patchBookingStatus(String id, BookingStatus status) async {
     final r = await _dio.patch<Map<String, dynamic>>(
       '/bookings/$id/status',
       data: {'status': bookingStatusToApi(status)},
+    );
+    return ApiEnvelope.parseData(
+      r.data,
+      (j) => BookingDto.fromJson(Map<String, dynamic>.from(j! as Map)),
+    );
+  }
+
+  Future<BookingDto> approveBooking(String id) async {
+    final r = await _dio.post<Map<String, dynamic>>('/bookings/$id/approve');
+    return ApiEnvelope.parseData(
+      r.data,
+      (j) => BookingDto.fromJson(Map<String, dynamic>.from(j! as Map)),
+    );
+  }
+
+  Future<BookingDto> rejectBooking(String id) async {
+    final r = await _dio.post<Map<String, dynamic>>('/bookings/$id/reject');
+    return ApiEnvelope.parseData(
+      r.data,
+      (j) => BookingDto.fromJson(Map<String, dynamic>.from(j! as Map)),
+    );
+  }
+
+  Future<BookingDto> updateExpertFeedback({
+    required String bookingId,
+    required int expertRating,
+    required String expertComment,
+  }) async {
+    final r = await _dio.patch<Map<String, dynamic>>(
+      '/bookings/$bookingId/feedback',
+      data: {
+        'expertRating': expertRating,
+        'expertComment': expertComment,
+      },
     );
     return ApiEnvelope.parseData(
       r.data,
