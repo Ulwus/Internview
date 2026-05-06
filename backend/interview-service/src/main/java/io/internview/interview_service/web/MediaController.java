@@ -27,7 +27,7 @@ import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStart
 import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStopResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RouterCapabilitiesResponse;
 import io.internview.interview_service.repository.InterviewSessionRepository;
-import io.internview.interview_service.service.InterviewSessionService;
+
 import lombok.RequiredArgsConstructor;
 
 /**
