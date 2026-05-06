@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
-import org.springframework.lang.NonNull;
+
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Component;
@@ -30,10 +30,10 @@ public class WebSocketJwtHandshakeInterceptor implements HandshakeInterceptor {
 
 	@Override
 	public boolean beforeHandshake(
-		@NonNull ServerHttpRequest request,
-		@NonNull ServerHttpResponse response,
-		@NonNull WebSocketHandler wsHandler,
-		@NonNull Map<String, Object> attributes
+		ServerHttpRequest request,
+		ServerHttpResponse response,
+		WebSocketHandler wsHandler,
+		Map<String, Object> attributes
 	) {
 		String token = extractBearerToken(request);
 		if (token == null || token.isBlank()) {
@@ -58,9 +58,9 @@ public class WebSocketJwtHandshakeInterceptor implements HandshakeInterceptor {
 
 	@Override
 	public void afterHandshake(
-		@NonNull ServerHttpRequest request,
-		@NonNull ServerHttpResponse response,
-		@NonNull WebSocketHandler wsHandler,
+		ServerHttpRequest request,
+		ServerHttpResponse response,
+		WebSocketHandler wsHandler,
 		Exception exception
 	) {
 		// no-op

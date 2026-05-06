@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-import org.springframework.lang.NonNull;
+
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -29,7 +29,7 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
 	private final ObjectMapper objectMapper;
 
 	@Override
-	public void afterConnectionEstablished(@NonNull WebSocketSession session) throws Exception {
+	public void afterConnectionEstablished(WebSocketSession session) throws Exception {
 		UUID roomId = (UUID) session.getAttributes().get(WebSocketJwtHandshakeInterceptor.ATTR_ROOM_ID);
 		UUID userId = (UUID) session.getAttributes().get(WebSocketJwtHandshakeInterceptor.ATTR_USER_ID);
 		String role = (String) session.getAttributes().get(WebSocketJwtHandshakeInterceptor.ATTR_ROLE);
@@ -43,7 +43,7 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
 	}
 
 	@Override
-	protected void handleTextMessage(@NonNull WebSocketSession session, @NonNull TextMessage message) throws Exception {
+	protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
 		byte[] raw = message.getPayload().getBytes(StandardCharsets.UTF_8);
 		this.roomService.assertPayloadSize(raw);
 
@@ -81,7 +81,7 @@ public class SignalingWebSocketHandler extends TextWebSocketHandler {
 	}
 
 	@Override
-	public void afterConnectionClosed(@NonNull WebSocketSession session, @NonNull CloseStatus status) {
+	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
 		UUID roomId = (UUID) session.getAttributes().get(WebSocketJwtHandshakeInterceptor.ATTR_ROOM_ID);
 		UUID userId = (UUID) session.getAttributes().get(WebSocketJwtHandshakeInterceptor.ATTR_USER_ID);
 		if (roomId != null && userId != null) {

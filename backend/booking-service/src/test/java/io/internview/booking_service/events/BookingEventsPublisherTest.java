@@ -45,7 +45,7 @@ class BookingEventsPublisherTest {
 		));
 
 		Consumer<String, String> consumer = new DefaultKafkaConsumerFactory<String, String>(
-			KafkaTestUtils.consumerProps("booking-events-publisher-test", "true", this.embeddedKafka),
+			KafkaTestUtils.consumerProps(this.embeddedKafka, "booking-events-publisher-test", true),
 			new StringDeserializer(),
 			new StringDeserializer()
 		).createConsumer();
