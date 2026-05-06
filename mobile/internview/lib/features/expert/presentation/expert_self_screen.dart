@@ -58,7 +58,15 @@ class _ExpertSelfScreenState extends ConsumerState<ExpertSelfScreen> {
       appBar: AppBar(title: const Text('Uzman profilim')),
       body: me.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              e is ApiException ? e.message : 'Uzman profili yüklenemedi',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
         data: (d) {
           if (!_seeded) {
             _seeded = true;

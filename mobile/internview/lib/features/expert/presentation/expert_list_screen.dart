@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 
 import '../../../core/models/domain_models.dart';
 import '../../../core/network/dio_client.dart';
@@ -55,6 +56,14 @@ class _ExpertListScreenState extends ConsumerState<ExpertListScreen> {
         _hasNext = res.hasNext;
         if (res.hasNext) _page++;
       });
+    } catch (e) {
+      if (!mounted) return;
+      final msg = (e is DioException)
+          ? (e.response?.data is Map
+              ? ((e.response?.data as Map)['error']?['message']?.toString() ?? e.message ?? 'İstek başarısız')
+              : (e.message ?? 'İstek başarısız'))
+          : 'İstek başarısız';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

@@ -66,7 +66,7 @@ class ExpertDetailScreen extends ConsumerWidget {
                                       );
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Rezervasyon oluşturuldu')),
+                                      const SnackBar(content: Text('Talep gönderildi (uzman onayı bekleniyor)')),
                                     );
                                     context.push('/booking/${b.id}');
                                   }
