@@ -4,17 +4,22 @@ Backend API Gateway üzerinden çalışan Internview mobil istemcisi.
 
 ## Çalıştırma
 
-API tabanı `--dart-define` ile verilir:
+API tabanı `--dart-define-from-file` ile **tek bir yerde** tutulur:
 
 ```bash
 cd mobile/internview
 
 # Android emülatör (host makinedeki gateway:8080 → 10.0.2.2)
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+bash scripts/run_android.sh
 
 # iOS simülatör (aynı makinede gateway)
-flutter run --dart-define=API_BASE_URL=http://localhost:8080
+bash scripts/run_ios.sh
 ```
+
+Değerler:
+
+- `env/android.json`
+- `env/ios.json`
 
 Varsayılan olmayan URL için `lib/core/config/env.dart` içinde tanımlı sabite bakın.
 
