@@ -43,6 +43,9 @@ public class InterviewSession {
 	@Column(name = "status", nullable = false, length = 32)
 	private String status;
 
+	@Column(name = "expert_joined_at")
+	private Instant expertJoinedAt;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 

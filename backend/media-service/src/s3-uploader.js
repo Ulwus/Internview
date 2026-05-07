@@ -1,6 +1,6 @@
 'use strict';
 
-const { S3Client } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const fs = require('fs');
 const path = require('path');
@@ -62,6 +62,43 @@ class S3Uploader {
     logger.info(`S3 upload tamamlandı: ${url}`);
 
     return url;
+  }
+
+  /**
+   * Buffer'ı S3'e yükler.
+   * @param {Buffer} buffer
+   * @param {string} s3Key
+   * @param {string} contentType
+   * @returns {Promise<string>}
+   */
+  async uploadBuffer(buffer, s3Key, contentType) {
+    logger.info(`S3 upload (buffer) başlıyor: s3://${config.s3.bucket}/${s3Key}`);
+
+    const upload = new Upload({
+      client: this.client,
+      params: {
+        Bucket: config.s3.bucket,
+        Key: s3Key,
+        Body: buffer,
+        ContentType: contentType || 'application/octet-stream',
+      },
+      queueSize: 2,
+      partSize: 5 * 1024 * 1024,
+      leavePartsOnError: false,
+    });
+
+    const result = await upload.done();
+    const url = `${config.s3.endpoint}/${config.s3.bucket}/${s3Key}`;
+    logger.info(`S3 upload (buffer) tamamlandı: ${url}`);
+    return url;
+  }
+
+  async getObject(s3Key) {
+    const cmd = new GetObjectCommand({
+      Bucket: config.s3.bucket,
+      Key: s3Key,
+    });
+    return await this.client.send(cmd);
   }
 
   /**

@@ -17,6 +17,7 @@ import io.internview.interview_service.signaling.authorization.RoomAuthorizer;
 import io.internview.interview_service.signaling.error.SignalingException;
 import io.internview.interview_service.signaling.model.RoomPeerInfo;
 import io.internview.interview_service.signaling.model.SignalingMessage;
+import io.internview.interview_service.service.InterviewParticipationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +29,7 @@ public class RoomService {
 	private final RoomAuthorizer roomAuthorizer;
 	private final RedisRoomRegistry redisRoomRegistry;
 	private final ObjectMapper objectMapper;
+	private final InterviewParticipationService interviewParticipationService;
 
 	@Value("${internview.signaling.message.max-payload-bytes:65536}")
 	private int maxPayloadBytes;
@@ -43,6 +45,10 @@ public class RoomService {
 
 		this.redisRoomRegistry.addPeer(roomId, userId, role);
 		this.localRooms.computeIfAbsent(roomId, r -> new ConcurrentHashMap<>()).put(userId, session);
+
+		if (role != null && "EXPERT".equalsIgnoreCase(role)) {
+			this.interviewParticipationService.markExpertJoinedIfNeeded(roomId);
+		}
 
 		this.send(session, new SignalingMessage.RoomJoinedMessage(others));
 

@@ -68,6 +68,11 @@ public class ExpertController {
 		return ApiResponse.ok(this.expertService.getById(id));
 	}
 
+	@GetMapping("/by-user/{userId}")
+	public ApiResponse<ExpertDetailResponse> getByUserId(@PathVariable UUID userId) {
+		return ApiResponse.ok(this.expertService.getByUserId(userId));
+	}
+
 	@GetMapping("/me")
 	@PreAuthorize("hasRole('EXPERT')")
 	public ApiResponse<ExpertDetailResponse> getOwnProfile(@AuthenticationPrincipal Jwt jwt) {

@@ -4,6 +4,9 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.UUID;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +18,7 @@ import io.internview.booking_service.domain.AvailabilitySlot;
 import io.internview.booking_service.domain.Booking;
 import io.internview.booking_service.domain.BookingStatus;
 import io.internview.booking_service.events.BookingCreatedDomainEvent;
+import io.internview.booking_service.events.ExpertRatingUpdatedDomainEvent;
 import io.internview.booking_service.error.BookingNotFoundException;
 import io.internview.booking_service.error.InvalidBookingStateException;
 import io.internview.booking_service.error.InvalidSlotException;
@@ -206,8 +210,52 @@ public class BookingService {
 			throw new InvalidBookingStateException("Geri bildirim sadece COMPLETED randevuda verilebilir");
 		}
 
+		booking.setExpertToCandidateRating(rating);
+		booking.setExpertToCandidateComment(comment != null && !comment.isBlank() ? comment.trim() : null);
+		// Legacy alanları da dolduralım (geri uyumluluk / eski client'lar).
 		booking.setExpertRating(rating);
 		booking.setExpertComment(comment != null && !comment.isBlank() ? comment.trim() : null);
+		return BookingResponse.from(this.bookingRepository.save(booking));
+	}
+
+	@Transactional
+	public BookingResponse updateCandidateFeedback(UUID bookingId, UUID candidateId, Integer rating, String comment) {
+		Booking booking = this.bookingRepository.findById(bookingId)
+			.orElseThrow(() -> new BookingNotFoundException("Booking bulunamadı: " + bookingId));
+
+		if (!booking.getCandidateId().equals(candidateId)) {
+			throw new BookingNotFoundException("Booking bulunamadı: " + bookingId);
+		}
+		if (booking.getStatus() != BookingStatus.COMPLETED) {
+			throw new InvalidBookingStateException("Değerlendirme sadece COMPLETED randevuda verilebilir");
+		}
+
+		booking.setCandidateToExpertRating(rating);
+		booking.setCandidateToExpertComment(comment != null && !comment.isBlank() ? comment.trim() : null);
+		Booking saved = this.bookingRepository.save(booking);
+
+		// Uzman ortalamasını user-service/shop tarafına yansıtmak için event publish et.
+		Double avg = this.bookingRepository.avgExpertRating(saved.getExpertId());
+		long totalRated = this.bookingRepository.countRated(saved.getExpertId());
+		BigDecimal avgBd = avg == null ? BigDecimal.ZERO : BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP);
+		this.eventPublisher.publishEvent(new ExpertRatingUpdatedDomainEvent(saved.getExpertId(), avgBd, totalRated));
+
+		return BookingResponse.from(saved);
+	}
+
+	@Transactional
+	public BookingResponse deleteCandidateComment(UUID bookingId, UUID candidateId) {
+		Booking booking = this.bookingRepository.findById(bookingId)
+			.orElseThrow(() -> new BookingNotFoundException("Booking bulunamadı: " + bookingId));
+
+		if (!booking.getCandidateId().equals(candidateId)) {
+			throw new BookingNotFoundException("Booking bulunamadı: " + bookingId);
+		}
+		if (booking.getStatus() != BookingStatus.COMPLETED) {
+			throw new InvalidBookingStateException("Yorum sadece COMPLETED randevuda silinebilir");
+		}
+
+		booking.setCandidateToExpertComment(null);
 		return BookingResponse.from(this.bookingRepository.save(booking));
 	}
 }

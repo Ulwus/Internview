@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -69,6 +67,7 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       INTERVIEW_SERVICE_URL: http://interview-service:8083
       BOOKING_SERVICE_URL: http://booking-service:8084
+      MEDIA_SERVICE_URL: http://media-service:${MEDIA_SERVER_PORT:-3000}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:
@@ -110,11 +109,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-internview}
       POSTGRES_USER: ${POSTGRES_USER:-internview}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-internview_password}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
     ports:
       - "8082:8082"
     depends_on:
       - postgres
+      - kafka
     networks:
       - ${DOCKER_NETWORK:-internview-net}
 

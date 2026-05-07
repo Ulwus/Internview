@@ -20,6 +20,7 @@ import io.internview.booking_service.service.BookingService;
 import io.internview.booking_service.web.dto.BookingResponse;
 import io.internview.booking_service.web.dto.CreateBookingRequest;
 import io.internview.booking_service.web.dto.PageResponse;
+import io.internview.booking_service.web.dto.UpdateCandidateFeedbackRequest;
 import io.internview.booking_service.web.dto.UpdateBookingFeedbackRequest;
 import io.internview.booking_service.web.dto.UpdateBookingStatusRequest;
 import jakarta.validation.Valid;
@@ -107,5 +108,31 @@ public class BookingController {
 			request.getExpertRating(),
 			request.getExpertComment()
 		));
+	}
+
+	@PatchMapping("/{id}/candidate-feedback")
+	@PreAuthorize("hasRole('CANDIDATE')")
+	public ApiResponse<BookingResponse> updateCandidateFeedback(
+		@AuthenticationPrincipal Jwt jwt,
+		@PathVariable UUID id,
+		@Valid @RequestBody UpdateCandidateFeedbackRequest request
+	) {
+		UUID candidateId = UUID.fromString(jwt.getSubject());
+		return ApiResponse.ok(this.bookingService.updateCandidateFeedback(
+			id,
+			candidateId,
+			request.getCandidateRating(),
+			request.getCandidateComment()
+		));
+	}
+
+	@org.springframework.web.bind.annotation.DeleteMapping("/{id}/candidate-feedback/comment")
+	@PreAuthorize("hasRole('CANDIDATE')")
+	public ApiResponse<BookingResponse> deleteCandidateComment(
+		@AuthenticationPrincipal Jwt jwt,
+		@PathVariable UUID id
+	) {
+		UUID candidateId = UUID.fromString(jwt.getSubject());
+		return ApiResponse.ok(this.bookingService.deleteCandidateComment(id, candidateId));
 	}
 }
