@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../../core/presentation/widgets/neo/neo_background.dart';
-import '../../../core/presentation/widgets/neo/neo_box.dart';
-import '../../../core/presentation/widgets/neo/neo_button.dart';
+import '../../../core/presentation/widgets/penkrowd/animated_action_button.dart';
+import '../../../core/presentation/widgets/penkrowd/skeleton_container.dart';
 
 import '../../../core/models/booking_models.dart';
 import '../../../core/models/domain_models.dart';
@@ -57,9 +57,15 @@ class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              NeoBox(
-                color: theme.colorScheme.surface,
+              Container(
+                width: double.infinity,
                 padding: EdgeInsets.zero,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.black, width: 3),
+                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4))],
+                ),
                 child: Column(
                   children: [
                     Container(
@@ -98,9 +104,17 @@ class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
                             _selectedSlot = null;
                           });
                         },
-                        child: NeoBox(
-                          color: Colors.white,
+                        child: Container(
+                          width: double.infinity,
                           padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black, width: 3),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4)),
+                            ],
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -122,8 +136,15 @@ class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: NeoBox(
-                        color: const Color(0xFFFFD600), // Yellow calendar
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD600),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.black, width: 3),
+                          boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4))],
+                        ),
                         child: IgnorePointer(
                           ignoring: _selectedExpert == null,
                           child: Opacity(
@@ -222,9 +243,8 @@ class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              NeoButton(
-                color: const Color(0xFF00E5FF), // Cyan
-                onPressed: () async {
+              AnimatedActionButton(
+                onTap: () async {
                   if (_selectedExpert == null || _selectedSlot == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Önce uzman ve seans seçin')),
@@ -248,6 +268,14 @@ class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
                     }
                   }
                 },
+                width: double.infinity,
+                height: 48,
+                color: const Color(0xFF00E5FF),
+                pressedColor: const Color(0xFF00E5FF),
+                borderColor: Colors.black,
+                borderWidth: 3,
+                borderRadius: 14,
+                shadowOffset: const Offset(4, 4),
                 child: Center(
                   child: Text(
                     'Randevu Oluştur',
@@ -346,7 +374,19 @@ class _ExpertPickerSheetState extends ConsumerState<_ExpertPickerSheet> {
                     onSubmitted: (_) => _load(refresh: true),
                   ),
                 ),
-                IconButton(onPressed: () => _load(refresh: true), icon: const Icon(Icons.refresh)),
+                const SizedBox(width: 10),
+                AnimatedActionButton(
+                  onTap: () => _load(refresh: true),
+                  width: 46,
+                  height: 46,
+                  color: Colors.white,
+                  pressedColor: Colors.white,
+                  borderColor: Colors.black,
+                  borderWidth: 3,
+                  borderRadius: 14,
+                  shadowOffset: const Offset(4, 4),
+                  child: const Icon(Icons.refresh, color: Colors.black),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -363,7 +403,7 @@ class _ExpertPickerSheetState extends ConsumerState<_ExpertPickerSheet> {
                     if (i >= _items.length) {
                       return const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(child: SkeletonContainer(width: 140, height: 14, borderRadius: 8)),
                       );
                     }
                     final e = _items[i];

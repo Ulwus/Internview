@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/models/booking_models.dart';
 
@@ -39,6 +40,34 @@ String joinCtaLabel(BookingDto b) {
         return 'Yakında ($days gün)';
       }
       return 'Zamanı gelmedi';
+  }
+}
+
+String formatBookingWhen(BookingDto b) {
+  final start = b.scheduledStart.toLocal();
+  final end = b.scheduledEnd.toLocal();
+
+  final day = DateFormat('d MMM', 'tr_TR').format(start); // 7 May
+  final dow = DateFormat('EEE', 'tr_TR').format(start); // Per
+  final startTime = DateFormat('HH:mm', 'tr_TR').format(start);
+  final endTime = DateFormat('HH:mm', 'tr_TR').format(end);
+
+  return '$dow, $day • $startTime–$endTime';
+}
+
+String bookingStatusMiniLabel(BookingDto b) {
+  final now = DateTime.now();
+  switch (b.status) {
+    case BookingStatus.pending:
+      return 'Bekliyor';
+    case BookingStatus.cancelled:
+      return 'İptal';
+    case BookingStatus.completed:
+      return 'Bitti';
+    case BookingStatus.confirmed:
+      if (joinWindowAllowed(b, now: now)) return 'Canlı';
+      if (b.scheduledEnd.toLocal().isBefore(now)) return 'Geçmiş';
+      return 'Onaylı';
   }
 }
 

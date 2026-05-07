@@ -48,6 +48,14 @@ class ExpertRemoteDataSource {
     );
   }
 
+  Future<ExpertDetail> getExpertByUserId(String userId) async {
+    final r = await _dio.get<Map<String, dynamic>>('/experts/by-user/$userId');
+    return ApiEnvelope.parseData(
+      r.data,
+      (j) => ExpertDetail.fromJson(Map<String, dynamic>.from(j! as Map)),
+    );
+  }
+
   Future<ExpertDetail> getExpertMe() async {
     final r = await _dio.get<Map<String, dynamic>>('/experts/me');
     return ApiEnvelope.parseData(

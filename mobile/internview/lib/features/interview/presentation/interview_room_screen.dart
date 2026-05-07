@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_background/flutter_background.dart';
+
+import '../../../core/models/booking_models.dart';
+import '../../../core/platform/media_projection_fgs.dart';
 
 import '../../../core/network/local_host.dart';
-import '../../../core/presentation/widgets/neo/neo_box.dart';
-import '../../../core/presentation/widgets/neo/neo_button.dart';
+import '../../../core/presentation/widgets/neo/neo_background.dart';
+import '../../../core/presentation/widgets/penkrowd/animated_action_button.dart';
 import '../../auth/controllers/auth_controller.dart';
 import '../../booking/data/booking_remote_data_source.dart';
 import '../data/session_remote_data_source.dart';
@@ -25,7 +28,8 @@ class InterviewRoomScreen extends ConsumerStatefulWidget {
   final String bookingId;
 
   @override
-  ConsumerState<InterviewRoomScreen> createState() => _InterviewRoomScreenState();
+  ConsumerState<InterviewRoomScreen> createState() =>
+      _InterviewRoomScreenState();
 }
 
 class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
@@ -45,12 +49,32 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
   Timer? _countdownArmTimer;
   Timer? _countdownTicker;
   Timer? _autoCloseTimer;
-  int? _remainingSeconds;
+  final ValueNotifier<int?> _remainingSeconds = ValueNotifier<int?>(null);
   bool _closing = false;
   bool _finishRequested = false;
   bool _finishClosing = false;
   bool _isScreenSharing = false;
   MediaStream? _screenStream;
+  bool _screenShareFgsEnabled = false;
+  StreamSubscription<MediaStream>? _remoteStreamSub;
+  bool _cleanedUp = false;
+
+  Future<void> _ensureScreenShareForegroundService() async {
+    if (!Platform.isAndroid) return;
+    if (_screenShareFgsEnabled) return;
+    await MediaProjectionFgs.start();
+    _screenShareFgsEnabled = true;
+  }
+
+  Future<void> _stopScreenShareForegroundService() async {
+    if (!Platform.isAndroid) return;
+    if (!_screenShareFgsEnabled) return;
+    try {
+      await MediaProjectionFgs.stop();
+    } finally {
+      _screenShareFgsEnabled = false;
+    }
+  }
 
   @override
   void initState() {
@@ -58,18 +82,94 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     _init();
   }
 
+  Future<bool> _ensureCameraMicPermissions() async {
+    final camStatus = await Permission.camera.request();
+    final micStatus = await Permission.microphone.request();
+
+    final ok = camStatus.isGranted && micStatus.isGranted;
+    if (ok) return true;
+
+    if (!mounted) return false;
+
+    final permanentlyBlocked =
+        camStatus.isPermanentlyDenied ||
+        micStatus.isPermanentlyDenied ||
+        camStatus.isRestricted ||
+        micStatus.isRestricted;
+
+    if (permanentlyBlocked) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('İzin gerekli'),
+            content: const Text(
+              'Mülakata katılmak için kamera ve mikrofon izni gerekli. '
+              'İzinleri Ayarlar’dan açıp tekrar deneyin.',
+            ),
+            actions: [
+              AnimatedActionButton(
+                onTap: () => Navigator.of(context).pop(),
+                width: 110,
+                height: 44,
+                color: Colors.white,
+                pressedColor: Colors.white,
+                borderColor: Colors.black,
+                borderWidth: 3,
+                borderRadius: 14,
+                shadowOffset: const Offset(4, 4),
+                child: const Center(
+                  child: Text(
+                    'İptal',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedActionButton(
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await openAppSettings();
+                },
+                width: 110,
+                height: 44,
+                color: const Color(0xFF00E5FF),
+                pressedColor: const Color(0xFF00E5FF),
+                borderColor: Colors.black,
+                borderWidth: 3,
+                borderRadius: 14,
+                shadowOffset: const Offset(4, 4),
+                child: const Center(
+                  child: Text(
+                    'Ayarlar',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kamera ve mikrofon izni gerekli')),
+      );
+    }
+
+    return false;
+  }
+
   Future<void> _init() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
-    final cam = await Permission.camera.request();
-    final mic = await Permission.microphone.request();
-    if (!cam.isGranted || !mic.isGranted) {
-      if (mounted) {
-        setState(() => _conn = RoomConnState.disconnected);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kamera ve mikrofon izni gerekli')),
-        );
-      }
+    final permsOk = await _ensureCameraMicPermissions();
+    if (!permsOk) {
+      if (mounted) setState(() => _conn = RoomConnState.disconnected);
       return;
     }
 
@@ -81,11 +181,15 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     _isOfferer = _isExpert; // deterministik: offer'ı sadece uzman üretir
 
     try {
-      final booking = await ref.read(bookingRemoteProvider).getBooking(widget.bookingId);
+      final booking = await ref
+          .read(bookingRemoteProvider)
+          .getBooking(widget.bookingId);
       if (booking.status.name.toUpperCase() != 'CONFIRMED') {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Mülakat sadece onaylı randevuda açılır')),
+            const SnackBar(
+              content: Text('Mülakat sadece onaylı randevuda açılır'),
+            ),
           );
           context.pop();
         }
@@ -94,13 +198,13 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       final now = DateTime.now();
       final start = booking.scheduledStart.toLocal();
       final end = booking.scheduledEnd.toLocal();
-      final inJoinWindow =
-          (now.isAfter(start.subtract(const Duration(minutes: 15))) && now.isBefore(end)) ||
-              (now.isAfter(start) && now.isBefore(end.add(const Duration(minutes: 5))));
+      final inJoinWindow = now.isAfter(start) && now.isBefore(end);
       if (!inJoinWindow) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Mülakat zamanı dışında odaya girilemez')),
+            const SnackBar(
+              content: Text('Mülakat zamanı dışında odaya girilemez'),
+            ),
           );
           context.pop();
         }
@@ -109,10 +213,14 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       _scheduledEndLocal = end;
       _armCountdownAndAutoClose();
 
-      final session = await ref.read(sessionRemoteProvider).getSessionByBooking(widget.bookingId);
+      final session = await ref
+          .read(sessionRemoteProvider)
+          .getSessionByBooking(widget.bookingId);
       final wsRaw = replaceLocalhostForAndroid(session.signalingWebSocketUrl);
       final base = Uri.parse(wsRaw);
-      final uri = base.replace(queryParameters: {...base.queryParameters, 'token': token});
+      final uri = base.replace(
+        queryParameters: {...base.queryParameters, 'token': token},
+      );
 
       _rtc = WebRtcEngine();
       await _rtc!.setupPeerConnection(session.iceServers);
@@ -136,7 +244,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
         );
       });
 
-      _rtc!.remoteStreams.listen((s) {
+      _remoteStreamSub = _rtc!.remoteStreams.listen((s) {
         _remoteRenderer.srcObject = s;
         if (mounted) setState(() => _conn = RoomConnState.connected);
       });
@@ -152,7 +260,9 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _conn = RoomConnState.disconnected);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     }
   }
@@ -188,22 +298,17 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       if (end == null) return;
       final secs = end.difference(DateTime.now()).inSeconds;
       if (secs <= 0) {
-        _remainingSeconds = 0;
+        _remainingSeconds.value = 0;
         _countdownTicker?.cancel();
-        if (mounted) setState(() {});
         return;
       }
-      if (mounted) {
-        setState(() => _remainingSeconds = secs);
-      } else {
-        _remainingSeconds = secs;
-      }
+      _remainingSeconds.value = secs;
     });
     // ilk render hemen gelsin
     final end = _scheduledEndLocal;
     if (end != null) {
       final secs = end.difference(DateTime.now()).inSeconds;
-      if (mounted) setState(() => _remainingSeconds = secs);
+      _remainingSeconds.value = secs;
     }
   }
 
@@ -248,7 +353,9 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     if (msg is AnswerMessage) {
       final from = msg.fromUserId;
       if (from != null && from != myId) {
-        await rtc.setRemoteDescription(RTCSessionDescription(msg.sdp, 'answer'));
+        await rtc.setRemoteDescription(
+          RTCSessionDescription(msg.sdp, 'answer'),
+        );
       }
       return;
     }
@@ -262,7 +369,9 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       return;
     }
     if (msg is ErrorMessage && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(msg.message)));
     }
     if (msg is FinishRequestMessage) {
       // Candidate sees confirmation modal.
@@ -288,7 +397,9 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     }
     if (msg is FinishRejectMessage) {
       if (_isExpert && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aday bitirmeyi reddetti')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aday bitirmeyi reddetti')),
+        );
       }
       if (mounted) {
         setState(() => _finishRequested = false);
@@ -335,6 +446,16 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     if (rtc == null) return;
 
     try {
+      if (Platform.isIOS) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('iOS’ta ekran paylaşımı bu sürümde desteklenmiyor'),
+            ),
+          );
+        }
+        return;
+      }
       if (_isScreenSharing) {
         final camTracks = rtc.localStream?.getVideoTracks() ?? [];
         if (camTracks.isNotEmpty) {
@@ -343,37 +464,21 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
           _screenStream = null;
           if (mounted) setState(() => _isScreenSharing = false);
           await _renegotiateIfPossible();
-
-          try {
-            if (Theme.of(context).platform == TargetPlatform.android && FlutterBackground.isBackgroundExecutionEnabled) {
-              await FlutterBackground.disableBackgroundExecution();
-            }
-          } catch (_) {}
+          await _stopScreenShareForegroundService();
         }
         return;
       }
 
-      try {
-        if (Theme.of(context).platform == TargetPlatform.android) {
-          final hasPermissions = await FlutterBackground.hasPermissions;
-          if (!hasPermissions) {
-            const androidConfig = FlutterBackgroundAndroidConfig(
-              notificationTitle: "Ekran Paylaşımı",
-              notificationText: "Ekran paylaşımı devam ediyor...",
-              notificationImportance: AndroidNotificationImportance.normal,
-              notificationIcon: AndroidResource(name: 'ic_launcher', defType: 'mipmap'),
-            );
-            await FlutterBackground.initialize(androidConfig: androidConfig);
-          }
-          if (!FlutterBackground.isBackgroundExecutionEnabled) {
-            await FlutterBackground.enableBackgroundExecution();
-          }
-        }
-      } catch (e) {
-        debugPrint('FlutterBackground error: $e');
-      }
-
       // Ekran paylaşımı: Android/iOS destek durumuna göre hata verebilir.
+      if (Platform.isAndroid) {
+        // Android 14+’ta mediaProjection tipinde FGS başlatabilmek için önce
+        // kullanıcıdan ekran yakalama iznini al.
+        final granted = await Helper.requestCapturePermission();
+        if (granted != true) {
+          return;
+        }
+      }
+      await _ensureScreenShareForegroundService();
       final display = await navigator.mediaDevices.getDisplayMedia({
         'audio': false,
         'video': true,
@@ -381,6 +486,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       final screenTracks = display.getVideoTracks();
       if (screenTracks.isEmpty) {
         await display.dispose();
+        await _stopScreenShareForegroundService();
         return;
       }
 
@@ -389,6 +495,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       if (mounted) setState(() => _isScreenSharing = true);
       await _renegotiateIfPossible();
     } catch (e) {
+      await _stopScreenShareForegroundService();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ekran paylaşımı açılamadı: $e')),
@@ -398,6 +505,8 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
   }
 
   Future<void> _cleanup({bool pop = false}) async {
+    if (_cleanedUp) return;
+    _cleanedUp = true;
     try {
       _sig?.sendJson(leaveRoomOut);
     } catch (_) {}
@@ -405,23 +514,17 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     _countdownTicker?.cancel();
     _autoCloseTimer?.cancel();
     await _sub?.cancel();
+    await _remoteStreamSub?.cancel();
     await _sig?.dispose();
     await _rtc?.dispose();
     await _localRenderer.dispose();
     await _remoteRenderer.dispose();
-
-    try {
-      if (Theme.of(context).platform == TargetPlatform.android && FlutterBackground.isBackgroundExecutionEnabled) {
-        await FlutterBackground.disableBackgroundExecution();
-      }
-    } catch (_) {}
+    await _stopScreenShareForegroundService();
 
     _sig = null;
     _rtc = null;
     if (pop && mounted) context.pop();
   }
-
-  Future<void> _hangup() => _cleanup(pop: true);
 
   Future<void> _requestFinish() async {
     if (!_isExpert) return;
@@ -429,7 +532,11 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     if (_remoteUserId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Karşı taraf bağlanmadan bitirme isteği gönderilemez')),
+          const SnackBar(
+            content: Text(
+              'Karşı taraf bağlanmadan bitirme isteği gönderilemez',
+            ),
+          ),
         );
       }
       return;
@@ -457,8 +564,21 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       builder: (context) {
         return AlertDialog(
           contentPadding: const EdgeInsets.all(16),
-          content: NeoBox(
-            color: const Color(0xFFFFD600),
+          content: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD600),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black, width: 3),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black,
+                  blurRadius: 0,
+                  offset: Offset(4, 4),
+                ),
+              ],
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -477,27 +597,58 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: NeoButton(
-                        color: Colors.white,
-                        onPressed: () {
-                          _sig?.sendJson(finishRejectOut(targetUserId: remoteId));
+                      child: AnimatedActionButton(
+                        onTap: () {
+                          _sig?.sendJson(
+                            finishRejectOut(targetUserId: remoteId),
+                          );
                           Navigator.of(context).pop();
                         },
+                        width: double.infinity,
+                        height: 44,
+                        color: Colors.white,
+                        pressedColor: Colors.white,
+                        borderColor: Colors.black,
+                        borderWidth: 3,
+                        borderRadius: 14,
+                        shadowOffset: const Offset(4, 4),
                         child: const Center(
-                          child: Text('Reddet', style: TextStyle(fontWeight: FontWeight.w900)),
+                          child: Text(
+                            'Reddet',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: NeoButton(
-                        color: const Color(0xFF00E5FF),
-                        onPressed: () {
-                          _sig?.sendJson(finishAcceptOut(targetUserId: remoteId));
+                      child: AnimatedActionButton(
+                        onTap: () {
+                          _sig?.sendJson(
+                            finishAcceptOut(targetUserId: remoteId),
+                          );
                           Navigator.of(context).pop();
+                          unawaited(_markBookingCompletedFallback());
                         },
+                        width: double.infinity,
+                        height: 44,
+                        color: const Color(0xFF00E5FF),
+                        pressedColor: const Color(0xFF00E5FF),
+                        borderColor: Colors.black,
+                        borderWidth: 3,
+                        borderRadius: 14,
+                        shadowOffset: const Offset(4, 4),
                         child: const Center(
-                          child: Text('Onayla', style: TextStyle(fontWeight: FontWeight.w900)),
+                          child: Text(
+                            'Onayla',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -515,31 +666,63 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     final start = _joinedAt ?? DateTime.now();
     final secs = DateTime.now().difference(start).inSeconds;
     try {
-      await ref.read(sessionRemoteProvider).completeSession(
+      await ref
+          .read(sessionRemoteProvider)
+          .completeSession(
             bookingId: widget.bookingId,
             durationSeconds: secs,
             recordedVideoUrl: '',
           );
+      await _markBookingCompletedFallback();
+      await _waitForBookingCompleted();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mülakat tamamlandı')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Mülakat tamamlandı')));
       }
     } catch (e) {
+      await _markBookingCompletedFallback();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
+    }
+  }
+
+  Future<void> _markBookingCompletedFallback() async {
+    try {
+      await ref.read(bookingRemoteProvider).completeBooking(widget.bookingId);
+    } catch (_) {}
+  }
+
+  Future<void> _waitForBookingCompleted() async {
+    for (var attempt = 0; attempt < 10; attempt++) {
+      try {
+        final booking = await ref
+            .read(bookingRemoteProvider)
+            .getBooking(widget.bookingId);
+        if (booking.status == BookingStatus.completed) {
+          return;
+        }
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 300));
     }
   }
 
   Future<void> _closeDueToTime() async {
     if (_closing) return;
     _closing = true;
-    await _completeInterview();
+    if (_isExpert) {
+      await _completeInterview();
+    }
     await _cleanup(pop: true);
   }
 
   @override
   void dispose() {
     unawaited(_cleanup(pop: false));
+    _remainingSeconds.dispose();
     super.dispose();
   }
 
@@ -548,182 +731,265 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     final auth = ref.watch(authControllerProvider);
     final isExpert = auth?.role.toUpperCase() == 'EXPERT';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF9100), // Orange
-                        border: Border.all(color: Colors.black, width: 3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Kalan Süre: ${_remainingSeconds ?? 0}s',
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                  if (isExpert) ...[
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () async {
-                        // Uzman: Bitirme isteği karşı tarafa gitsin ve popup açılsın.
-                        if (_finishRequested) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Adayın onayı bekleniyor')),
-                          );
-                          return;
-                        }
-                        await _requestFinish();
-                      },
+    return NeoBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00E5FF), // Cyan
+                          color: const Color(0xFFFF9100), // Orange
                           border: Border.all(color: Colors.black, width: 3),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          _finishRequested ? 'Bekleniyor' : 'Bitir',
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                        child: ValueListenableBuilder<int?>(
+                          valueListenable: _remainingSeconds,
+                          builder: (context, seconds, _) {
+                            return Text(
+                              'Kalan Süre: ${seconds ?? 0}s',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                              textAlign: TextAlign.center,
+                            );
+                          },
                         ),
                       ),
                     ),
+                    if (isExpert) ...[
+                      const SizedBox(width: 8),
+                      AnimatedActionButton(
+                        onTap: () async {
+                          // Uzman: Bitirme isteği karşı tarafa gitsin ve popup açılsın.
+                          if (_finishRequested) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Adayın onayı bekleniyor'),
+                              ),
+                            );
+                            return;
+                          }
+                          await _requestFinish();
+                        },
+                        width: 120,
+                        height: 44,
+                        color: const Color(0xFF00E5FF),
+                        pressedColor: const Color(0xFF00E5FF),
+                        borderColor: Colors.black,
+                        borderWidth: 3,
+                        borderRadius: 14,
+                        shadowOffset: const Offset(4, 4),
+                        child: Center(
+                          child: Text(
+                            _finishRequested ? 'Bekleniyor' : 'Bitir',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-              if (isExpert && _finishRequested) ...[
-                const SizedBox(height: 12),
-                NeoBox(
-                  color: const Color(0xFFFFD600),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Text(
+                ),
+                if (isExpert && _finishRequested) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFD600),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black, width: 3),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black,
+                          blurRadius: 0,
+                          offset: Offset(4, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Text(
                       'Adaydan onay bekleniyor…',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Expanded(
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFB388FF), // Purple shadow/bg
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.black, width: 4),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black, offset: Offset(6, 6)),
-                        ],
-                      ),
-                      clipBehavior: Clip.hardEdge,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
-                          if (_conn != RoomConnState.connected)
-                            const Center(
-                              child: Text(
-                                'Karşıdaki Kişinin Paylaşımı\nBekleniyor...',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      right: 16,
-                      bottom: 16,
-                      width: 120,
-                      height: 160,
-                      child: Container(
+                ],
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFD600), // Yellow shadow/bg
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black, width: 3),
+                          color: const Color(0xFFB388FF), // Purple shadow/bg
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.black, width: 4),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black,
+                              offset: Offset(6, 6),
+                            ),
+                          ],
                         ),
                         clipBehavior: Clip.hardEdge,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            RTCVideoView(_localRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
-                            if (_rtc?.localStream == null)
+                            ExcludeSemantics(
+                              child: RepaintBoundary(
+                                child: RTCVideoView(
+                                  _remoteRenderer,
+                                  objectFit: RTCVideoViewObjectFit
+                                      .RTCVideoViewObjectFitCover,
+                                ),
+                              ),
+                            ),
+                            if (_conn != RoomConnState.connected)
                               const Center(
                                 child: Text(
-                                  'Mevcut\nKişinin\nPaylaşımı',
+                                  'Karşıdaki Kişinin Paylaşımı\nBekleniyor...',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18,
+                                  ),
                                 ),
                               ),
                           ],
                         ),
                       ),
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        width: 120,
+                        height: 160,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD600), // Yellow shadow/bg
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.black, width: 3),
+                          ),
+                          clipBehavior: Clip.hardEdge,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ExcludeSemantics(
+                                child: RepaintBoundary(
+                                  child: RTCVideoView(
+                                    _localRenderer,
+                                    objectFit: RTCVideoViewObjectFit
+                                        .RTCVideoViewObjectFitCover,
+                                  ),
+                                ),
+                              ),
+                              if (_rtc?.localStream == null)
+                                const Center(
+                                  child: Text(
+                                    'Mevcut\nKişinin\nPaylaşımı',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildControlBtn(
+                      'Mik',
+                      Icons.mic_off,
+                      const Color(0xFFFFD600),
+                      () {
+                        final audios =
+                            _rtc?.localStream?.getAudioTracks() ?? [];
+                        if (audios.isNotEmpty) {
+                          audios.first.enabled = !audios.first.enabled;
+                        }
+                      },
+                    ),
+                    _buildControlBtn(
+                      _isScreenSharing ? 'Ekran ✓' : 'Ekran',
+                      Icons.screen_share,
+                      const Color(0xFF00E5FF),
+                      () async => _toggleScreenShare(),
+                    ),
+                    _buildControlBtn(
+                      'Cam',
+                      Icons.videocam_off,
+                      const Color(0xFFFF5252),
+                      () {
+                        final vids = _rtc?.localStream?.getVideoTracks() ?? [];
+                        if (vids.isNotEmpty) {
+                          vids.first.enabled = !vids.first.enabled;
+                        }
+                      },
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildControlBtn('Mik', Icons.mic_off, const Color(0xFFFFD600), () {
-                    final audios = _rtc?.localStream?.getAudioTracks() ?? [];
-                    if (audios.isNotEmpty) audios.first.enabled = !audios.first.enabled;
-                  }),
-                  _buildControlBtn(
-                    _isScreenSharing ? 'Ekran ✓' : 'Ekran',
-                    Icons.screen_share,
-                    const Color(0xFF00E5FF),
-                    () async => _toggleScreenShare(),
-                  ),
-                  _buildControlBtn('Cam', Icons.videocam_off, const Color(0xFFFF5252), () {
-                    final vids = _rtc?.localStream?.getVideoTracks() ?? [];
-                    if (vids.isNotEmpty) vids.first.enabled = !vids.first.enabled;
-                  }),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildControlBtn(String label, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
+  Widget _buildControlBtn(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return AnimatedActionButton(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black, width: 3),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, offset: Offset(3, 3)),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.black),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-          ],
-        ),
+      width: 96,
+      height: 64,
+      color: color,
+      pressedColor: color,
+      borderColor: Colors.black,
+      borderWidth: 3,
+      borderRadius: 14,
+      shadowOffset: const Offset(4, 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.black),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              color: Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }

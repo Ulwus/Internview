@@ -1,27 +1,41 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../../core/config/env.dart';
 import '../../../core/models/session_models.dart';
 import '../../../core/network/local_host.dart';
 
-String _rewriteIceUrlForAndroid(String url) {
-  if (!Platform.isAndroid) return url;
+String _iceHostForCurrentRuntime() {
+  // Simülatör/emülatör localhost'u farklı görür; fiziksel cihazlarda API host'unu
+  // kullanmak gerekir. API localhost ise Android emülatör host makineyi 10.0.2.2 ile görür.
+  try {
+    final base = Uri.parse(Env.apiBaseUrl);
+    if (base.host.isNotEmpty &&
+        base.host != 'localhost' &&
+        base.host != '127.0.0.1') {
+      return base.host;
+    }
+  } catch (_) {}
+  if (Platform.isAndroid) return '10.0.2.2';
+  return 'localhost';
+}
 
-  // 1) ws/http gibi URL'ler
-  final httpLike = replaceLocalhostForAndroid(url);
-  if (httpLike != url) return httpLike;
+String _rewriteIceUrl(String url) {
+  // 1) ws/http gibi URL'ler (sadece Android emulator ihtiyacı vardı)
+  if (Platform.isAndroid) {
+    final httpLike = replaceLocalhostForAndroid(url);
+    if (httpLike != url) return httpLike;
+  }
 
   // 2) ICE URL'leri genelde "stun:host:3478" / "turn:host:3478?transport=udp"
-  // Android emülatörde "localhost/127.0.0.1/coturn" cihaz içinde çözümlenemez.
-  // Dev ortamında host makineyi işaret etmek için 10.0.2.2 kullan.
-  const host = '10.0.2.2';
+  final host = _iceHostForCurrentRuntime();
 
   String rewriteFor(String scheme) {
     if (!url.startsWith('$scheme:')) return url;
     final rest = url.substring(scheme.length + 1); // after "scheme:"
-    // rest = "host:port?..." veya "host?..." olabilir
     final idx = rest.indexOf(':');
     final qIdx = rest.indexOf('?');
     final hostEnd = (() {
@@ -31,7 +45,11 @@ String _rewriteIceUrlForAndroid(String url) {
     })();
     final currentHost = rest.substring(0, hostEnd);
 
-    if (currentHost == 'localhost' || currentHost == '127.0.0.1' || currentHost == 'coturn') {
+    // Backend bazen docker internal host'u "coturn" gönderiyor.
+    // Mobil/simülatör bunu çözemez; API host'una rewrite et.
+    if (currentHost == 'localhost' ||
+        currentHost == '127.0.0.1' ||
+        currentHost == 'coturn') {
       return '$scheme:$host${rest.substring(hostEnd)}';
     }
     return url;
@@ -50,6 +68,7 @@ typedef IceCandidateHandler = void Function(RTCIceCandidate candidate);
 class WebRtcEngine {
   RTCPeerConnection? _pc;
   MediaStream? _local;
+  MediaStream? _remote;
   final _remoteCtrl = StreamController<MediaStream>.broadcast();
 
   Stream<MediaStream> get remoteStreams => _remoteCtrl.stream;
@@ -63,12 +82,10 @@ class WebRtcEngine {
   Future<void> setupPeerConnection(List<IceServerDto> iceServers) async {
     await dispose();
 
-    // Android emulator'de "localhost" cihazın kendisi demek.
-    // TURN/STUN URL'leri backend'den localhost ile geliyorsa host'a (10.0.2.2) çevir.
     final rewrittenIceServers = iceServers
         .map(
           (s) => IceServerDto(
-            urls: s.urls.map(_rewriteIceUrlForAndroid).toList(),
+            urls: s.urls.map(_rewriteIceUrl).toList(),
             username: s.username,
             credential: s.credential,
           ),
@@ -87,30 +104,63 @@ class WebRtcEngine {
           .toList(),
       'sdpSemantics': 'unified-plan',
     };
+    developer.log('Using config: $config', name: 'WebRtcEngine');
     _pc = await createPeerConnection(config, {
-      'optional': [{'DtlsSrtpKeyAgreement': true}]
+      'optional': [
+        {'DtlsSrtpKeyAgreement': true},
+      ],
     });
 
-    _pc!.onAddStream = (stream) {
-      _remoteCtrl.add(stream);
-    };
+    _pc!.onAddStream = _publishRemoteStream;
 
     _pc!.onAddTrack = (stream, track) {
-      _remoteCtrl.add(stream);
+      _publishRemoteStream(stream);
     };
 
-    _pc!.onTrack = (ev) {
+    _pc!.onTrack = (ev) async {
       if (ev.streams.isNotEmpty) {
-        _remoteCtrl.add(ev.streams.first);
+        _publishRemoteStream(ev.streams.first);
+        return;
       }
+
+      final remote = _remote ??= await createLocalMediaStream(
+        'remote-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      final trackId = ev.track.id;
+      if (trackId == null || remote.getTrackById(trackId) == null) {
+        await remote.addTrack(ev.track);
+      }
+      _publishRemoteStream(remote);
+    };
+
+    _pc!.onIceConnectionState = (state) {
+      developer.log('ICE Connection State: $state', name: 'WebRtcEngine');
+    };
+    _pc!.onSignalingState = (state) {
+      developer.log('Signaling State: $state', name: 'WebRtcEngine');
+    };
+    _pc!.onIceGatheringState = (state) {
+      developer.log('ICE Gathering State: $state', name: 'WebRtcEngine');
+    };
+    _pc!.onConnectionState = (state) {
+      developer.log('Connection State: $state', name: 'WebRtcEngine');
     };
   }
 
   Future<void> getUserMedia() async {
-    _local = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': true});
+    _local = await navigator.mediaDevices.getUserMedia({
+      'audio': true,
+      'video': true,
+    });
     for (final t in _local!.getTracks()) {
       await _pc?.addTrack(t, _local!);
     }
+  }
+
+  void _publishRemoteStream(MediaStream stream) {
+    if (_remoteCtrl.isClosed) return;
+    _remote = stream;
+    _remoteCtrl.add(stream);
   }
 
   /// Gönderilen video track'ini (kamera / ekran) runtime'da değiştirir.
@@ -158,7 +208,9 @@ class WebRtcEngine {
     _queuedCandidates.clear();
   }
 
-  Future<RTCSessionDescription> createAnswer(RTCSessionDescription offer) async {
+  Future<RTCSessionDescription> createAnswer(
+    RTCSessionDescription offer,
+  ) async {
     await setRemoteDescription(offer);
     final answer = await _pc!.createAnswer({});
     await _pc!.setLocalDescription(answer);
@@ -166,7 +218,9 @@ class WebRtcEngine {
   }
 
   /// Karşı tarafın offer SDP'si ile answer üretir.
-  Future<RTCSessionDescription> applyRemoteOfferCreateAnswer(RTCSessionDescription offer) async {
+  Future<RTCSessionDescription> applyRemoteOfferCreateAnswer(
+    RTCSessionDescription offer,
+  ) async {
     return createAnswer(offer);
   }
 
@@ -186,6 +240,8 @@ class WebRtcEngine {
     }
     await _local?.dispose();
     _local = null;
+    await _remote?.dispose();
+    _remote = null;
     await _pc?.close();
     _pc = null;
   }

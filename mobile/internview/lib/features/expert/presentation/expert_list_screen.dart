@@ -5,6 +5,9 @@ import 'package:dio/dio.dart';
 
 import '../../../core/models/domain_models.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/presentation/widgets/neo/neo_background.dart';
+import '../../../core/presentation/widgets/penkrowd/animated_action_button.dart';
+import '../../../core/presentation/widgets/penkrowd/skeleton_container.dart';
 import '../data/expert_remote_data_source.dart';
 
 final expertRemoteProvider = Provider<ExpertRemoteDataSource>(
@@ -71,64 +74,99 @@ class _ExpertListScreenState extends ConsumerState<ExpertListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Uzmanlar')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _search,
-                    decoration: const InputDecoration(
-                      hintText: 'Ara…',
-                      prefixIcon: Icon(Icons.search),
+    return NeoBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(title: const Text('Uzmanlar')),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _search,
+                      decoration: const InputDecoration(
+                        hintText: 'Ara…',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onSubmitted: (_) => _load(refresh: true),
                     ),
-                    onSubmitted: (_) => _load(refresh: true),
                   ),
-                ),
-                IconButton(onPressed: () => _load(refresh: true), icon: const Icon(Icons.refresh)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (n) {
-                if (n.metrics.pixels > n.metrics.maxScrollExtent - 200) {
-                  _load();
-                }
-                return false;
-              },
-              child: ListView.builder(
-                itemCount: _items.length + (_loading ? 1 : 0),
-                itemBuilder: (context, i) {
-                  if (i >= _items.length) {
-                    return const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  final e = _items[i];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage:
-                          (e.avatarUrl != null && e.avatarUrl!.isNotEmpty) ? NetworkImage(e.avatarUrl!) : null,
-                      child: (e.avatarUrl == null || e.avatarUrl!.isEmpty)
-                          ? Text(e.firstName.isNotEmpty ? e.firstName[0].toUpperCase() : '?')
-                          : null,
-                    ),
-                    title: Text('${e.firstName} ${e.lastName}'),
-                    subtitle: Text(e.headline ?? ''),
-                    trailing: Text(e.hourlyRate != null ? '${e.hourlyRate} ${e.currency ?? ''}' : ''),
-                    onTap: () => context.push('/expert/${e.id}'),
-                  );
-                },
+                  AnimatedActionButton(
+                    onTap: () => _load(refresh: true),
+                    width: 46,
+                    height: 46,
+                    color: Colors.white,
+                    pressedColor: Colors.white,
+                    borderColor: Colors.black,
+                    borderWidth: 3,
+                    borderRadius: 14,
+                    shadowOffset: const Offset(4, 4),
+                    child: const Icon(Icons.refresh, color: Colors.black),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  if (n.metrics.pixels > n.metrics.maxScrollExtent - 200) {
+                    _load();
+                  }
+                  return false;
+                },
+                child: ListView.builder(
+                  itemCount: (_items.isEmpty && _loading) ? 8 : _items.length + (_loading ? 1 : 0),
+                  itemBuilder: (context, i) {
+                    if (_items.isEmpty && _loading) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            SkeletonContainer(width: 44, height: 44, borderRadius: 22),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SkeletonContainer(width: double.infinity, height: 14, borderRadius: 8),
+                                  SizedBox(height: 8),
+                                  SkeletonContainer(width: 180, height: 12, borderRadius: 8),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    if (i >= _items.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: SkeletonContainer(width: 140, height: 14, borderRadius: 8)),
+                      );
+                    }
+                    final e = _items[i];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage:
+                            (e.avatarUrl != null && e.avatarUrl!.isNotEmpty) ? NetworkImage(e.avatarUrl!) : null,
+                        child: (e.avatarUrl == null || e.avatarUrl!.isEmpty)
+                            ? Text(e.firstName.isNotEmpty ? e.firstName[0].toUpperCase() : '?')
+                            : null,
+                      ),
+                      title: Text('${e.firstName} ${e.lastName}'),
+                      subtitle: Text(e.headline ?? ''),
+                      trailing: Text(e.hourlyRate != null ? '${e.hourlyRate} ${e.currency ?? ''}' : ''),
+                      onTap: () => context.push('/expert/${e.id}'),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

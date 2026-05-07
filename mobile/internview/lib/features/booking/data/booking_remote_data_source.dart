@@ -36,7 +36,10 @@ class BookingRemoteDataSource {
     );
   }
 
-  Future<SlotDto> createMySlot({required DateTime start, required DateTime end}) async {
+  Future<SlotDto> createMySlot({
+    required DateTime start,
+    required DateTime end,
+  }) async {
     try {
       final r = await _dio.post<Map<String, dynamic>>(
         '/experts/me/availability',
@@ -69,7 +72,10 @@ class BookingRemoteDataSource {
     }
   }
 
-  Future<BookingDto> createBooking({required String expertId, required String slotId}) async {
+  Future<BookingDto> createBooking({
+    required String expertId,
+    required String slotId,
+  }) async {
     try {
       final r = await _dio.post<Map<String, dynamic>>(
         '/bookings',
@@ -99,7 +105,10 @@ class BookingRemoteDataSource {
     );
   }
 
-  Future<PageResponse<BookingDto>> listCandidateBookings({int page = 0, int size = 20}) async {
+  Future<PageResponse<BookingDto>> listCandidateBookings({
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
       final r = await _dio.get<Map<String, dynamic>>(
         '/bookings/me/candidate',
@@ -117,7 +126,10 @@ class BookingRemoteDataSource {
     }
   }
 
-  Future<PageResponse<BookingDto>> listExpertBookings({int page = 0, int size = 20}) async {
+  Future<PageResponse<BookingDto>> listExpertBookings({
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
       final r = await _dio.get<Map<String, dynamic>>(
         '/bookings/me/expert',
@@ -146,6 +158,10 @@ class BookingRemoteDataSource {
     );
   }
 
+  Future<BookingDto> completeBooking(String id) {
+    return patchBookingStatus(id, BookingStatus.completed);
+  }
+
   Future<BookingDto> approveBooking(String id) async {
     final r = await _dio.post<Map<String, dynamic>>('/bookings/$id/approve');
     return ApiEnvelope.parseData(
@@ -169,10 +185,37 @@ class BookingRemoteDataSource {
   }) async {
     final r = await _dio.patch<Map<String, dynamic>>(
       '/bookings/$bookingId/feedback',
+      data: {'expertRating': expertRating, 'expertComment': expertComment},
+    );
+    return ApiEnvelope.parseData(
+      r.data,
+      (j) => BookingDto.fromJson(Map<String, dynamic>.from(j! as Map)),
+    );
+  }
+
+  Future<BookingDto> updateCandidateFeedback({
+    required String bookingId,
+    required int candidateRating,
+    required String candidateComment,
+  }) async {
+    final r = await _dio.patch<Map<String, dynamic>>(
+      '/bookings/$bookingId/candidate-feedback',
       data: {
-        'expertRating': expertRating,
-        'expertComment': expertComment,
+        'candidateRating': candidateRating,
+        'candidateComment': candidateComment,
       },
+    );
+    return ApiEnvelope.parseData(
+      r.data,
+      (j) => BookingDto.fromJson(Map<String, dynamic>.from(j! as Map)),
+    );
+  }
+
+  Future<BookingDto> deleteCandidateFeedbackComment({
+    required String bookingId,
+  }) async {
+    final r = await _dio.delete<Map<String, dynamic>>(
+      '/bookings/$bookingId/candidate-feedback/comment',
     );
     return ApiEnvelope.parseData(
       r.data,
@@ -186,12 +229,13 @@ class BookingRemoteDataSource {
     if (data is Map) {
       final ae = ApiEnvelope.tryParseError(data);
       if (ae != null) {
-        return ApiException(code: ae.code, message: ae.message, statusCode: code);
+        return ApiException(
+          code: ae.code,
+          message: ae.message,
+          statusCode: code,
+        );
       }
     }
-    return ApiException(
-      message: e.message ?? 'Ağ hatası',
-      statusCode: code,
-    );
+    return ApiException(message: e.message ?? 'Ağ hatası', statusCode: code);
   }
 }

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/booking_models.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/presentation/widgets/neo/neo_background.dart';
+import '../../../core/presentation/widgets/penkrowd/animated_action_button.dart';
+import '../../../core/presentation/widgets/penkrowd/skeleton_container.dart';
 import '../../booking/data/booking_remote_data_source.dart';
 
 final mySlotsProvider = FutureProvider.autoDispose<List<SlotDto>>((ref) {
@@ -43,40 +46,54 @@ class _ExpertAvailabilityScreenState extends ConsumerState<ExpertAvailabilityScr
   Widget build(BuildContext context) {
     final slotsAsync = ref.watch(mySlotsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Müsaitlik'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(mySlotsProvider),
-          ),
-        ],
-      ),
-      body: slotsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (slots) {
-          final grouped = _groupSlotsByLocalDay(slots);
-          return Column(
-            children: [
-              _MonthHeader(
-                month: _visibleMonth,
-                canGoPrev: _canGoPrev,
-                canGoNext: _canGoNext,
-                onPrev: () => setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1)),
-                onNext: () => setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1)),
+    return NeoBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('Müsaitlik'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: AnimatedActionButton(
+                onTap: () => ref.invalidate(mySlotsProvider),
+                width: 46,
+                height: 46,
+                color: Colors.white,
+                pressedColor: Colors.white,
+                borderColor: Colors.black,
+                borderWidth: 3,
+                borderRadius: 14,
+                shadowOffset: const Offset(4, 4),
+                child: const Icon(Icons.refresh, color: Colors.black),
               ),
-              Expanded(
-                child: _MonthGrid(
+            ),
+          ],
+        ),
+        body: slotsAsync.when(
+          loading: () => const Center(child: SkeletonContainer(width: 220, height: 14, borderRadius: 8)),
+          error: (e, _) => Center(child: Text('$e')),
+          data: (slots) {
+            final grouped = _groupSlotsByLocalDay(slots);
+            return Column(
+              children: [
+                _MonthHeader(
                   month: _visibleMonth,
-                  slotsByDay: grouped,
-                  onDayTap: (day) => _openDayBottomSheet(context, day, grouped[day] ?? const []),
+                  canGoPrev: _canGoPrev,
+                  canGoNext: _canGoNext,
+                  onPrev: () => setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1)),
+                  onNext: () => setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1)),
                 ),
-              ),
-            ],
-          );
-        },
+                Expanded(
+                  child: _MonthGrid(
+                    month: _visibleMonth,
+                    slotsByDay: grouped,
+                    onDayTap: (day) => _openDayBottomSheet(context, day, grouped[day] ?? const []),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -118,8 +135,8 @@ class _ExpertAvailabilityScreenState extends ConsumerState<ExpertAvailabilityScr
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: () async {
+                AnimatedActionButton(
+                  onTap: () async {
                     final startT = await showTimePicker(
                       context: context,
                       initialTime: const TimeOfDay(hour: 9, minute: 0),
@@ -141,8 +158,22 @@ class _ExpertAvailabilityScreenState extends ConsumerState<ExpertAvailabilityScr
                       }
                     }
                   },
-                  icon: const Icon(Icons.add),
-                  label: const Text('45 dk seans ekle'),
+                  width: double.infinity,
+                  height: 48,
+                  color: const Color(0xFF00E5FF),
+                  pressedColor: const Color(0xFF00E5FF),
+                  borderColor: Colors.black,
+                  borderWidth: 3,
+                  borderRadius: 14,
+                  shadowOffset: const Offset(4, 4),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add, color: Colors.black),
+                      SizedBox(width: 8),
+                      Text('45 dk seans ekle', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black)),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (slots.isEmpty)
@@ -170,9 +201,8 @@ class _ExpertAvailabilityScreenState extends ConsumerState<ExpertAvailabilityScr
                           subtitle: Text(s.booked ? 'Dolu' : 'Boş'),
                           trailing: s.booked
                               ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () async {
+                              : AnimatedActionButton(
+                                  onTap: () async {
                                     try {
                                       await ref.read(bookingRemoteProvider).deleteMySlot(s.id);
                                       ref.invalidate(mySlotsProvider);
@@ -185,6 +215,15 @@ class _ExpertAvailabilityScreenState extends ConsumerState<ExpertAvailabilityScr
                                       }
                                     }
                                   },
+                                  width: 44,
+                                  height: 44,
+                                  color: Colors.white,
+                                  pressedColor: Colors.white,
+                                  borderColor: Colors.black,
+                                  borderWidth: 3,
+                                  borderRadius: 14,
+                                  shadowOffset: const Offset(4, 4),
+                                  child: const Icon(Icons.delete_outline, color: Colors.black),
                                 ),
                         );
                       },
@@ -220,9 +259,17 @@ class _MonthHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Row(
         children: [
-          IconButton(
-            onPressed: canGoPrev ? onPrev : null,
-            icon: const Icon(Icons.chevron_left),
+          AnimatedActionButton(
+            onTap: canGoPrev ? onPrev : null,
+            width: 46,
+            height: 46,
+            color: Colors.white,
+            pressedColor: Colors.white,
+            borderColor: Colors.black,
+            borderWidth: 3,
+            borderRadius: 14,
+            shadowOffset: const Offset(4, 4),
+            child: const Icon(Icons.chevron_left, color: Colors.black),
           ),
           Expanded(
             child: Center(
@@ -232,9 +279,17 @@ class _MonthHeader extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            onPressed: canGoNext ? onNext : null,
-            icon: const Icon(Icons.chevron_right),
+          AnimatedActionButton(
+            onTap: canGoNext ? onNext : null,
+            width: 46,
+            height: 46,
+            color: Colors.white,
+            pressedColor: Colors.white,
+            borderColor: Colors.black,
+            borderWidth: 3,
+            borderRadius: 14,
+            shadowOffset: const Offset(4, 4),
+            child: const Icon(Icons.chevron_right, color: Colors.black),
           ),
         ],
       ),
