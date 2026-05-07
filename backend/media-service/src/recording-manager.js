@@ -16,36 +16,116 @@ const s3Uploader = require('./s3-uploader');
  * PlainTransport üzerinden RTP akışını FFmpeg'e yönlendirir,
  * FFmpeg stream copy ile .webm dosyasına kaydeder.
  * Kayıt tamamlanınca dosyayı S3'e yükler.
+ *
+ * Pending recording: startRecording çağrıldığında producer'lar henüz
+ * hazır değilse "pending" işaretlenir. ProducerConsumerManager'dan
+ * gelen 'producerCreated' eventi ile producer'lar hazır olduğunda
+ * otomatik başlatılır. Bu sayede signaling tarafı (interview-service)
+ * peer'lar room'a girer girmez recording isteyebilir; media plane
+ * hazır olur olmaz pipeline gerçekten başlar.
  */
 class RecordingManager {
   constructor() {
     /**
-     * roomId → { process, filePath, audioConsumer, videoConsumer,
-     *            audioTransport, videoTransport }
+     * roomId → { process, filePath, transports, consumers }
      * @type {Map<string, object>}
      */
     this.activeRecordings = new Map();
+
+    /**
+     * Producer'ları bekleyen pending recording'ler.
+     * @type {Set<string>}
+     */
+    this.pendingRecordings = new Set();
+
+    // Producer hazır olduğunda pending recording'i başlatmayı dene.
+    producerConsumerManager.on('producerCreated', ({ roomId }) => {
+      this._tryStartPending(roomId).catch((err) => {
+        logger.warn(`Pending recording start denemesi başarısız: ${roomId} → ${err.message}`);
+      });
+    });
   }
 
   /**
    * Belirtilen room için recording başlatır.
    *
-   * Adımlar:
-   * 1. Audio ve video producer'larını bul
-   * 2. PlainTransport oluştur (her biri için)
-   * 3. Consumer oluştur → PlainTransport'a bağla
-   * 4. SDP dosyası oluştur
-   * 5. FFmpeg spawn et
+   * Producer'lar (audio + video) hazırsa hemen başlar; değilse pending
+   * olarak işaretlenir ve producer geldiğinde otomatik başlatılır.
    *
    * @param {string} roomId
-   * @returns {Promise<void>}
+   * @returns {Promise<{ status: 'active'|'pending' }>}
    */
   async startRecording(roomId) {
     if (this.activeRecordings.has(roomId)) {
-      logger.warn(`Room zaten kaydediliyor: ${roomId}`);
+      logger.info(`Room zaten kaydediliyor (idempotent): ${roomId}`);
+      return { status: 'active' };
+    }
+
+    if (this.pendingRecordings.has(roomId)) {
+      logger.info(`Room recording pending (idempotent): ${roomId}`);
+      return { status: 'pending' };
+    }
+
+    const router = mediasoupManager.getRouter(roomId);
+    if (!router) {
+      throw new Error(`Room bulunamadı: ${roomId}`);
+    }
+
+    if (this._hasRequiredProducers(roomId)) {
+      await this._doStartRecording(roomId);
+      return { status: 'active' };
+    }
+
+    this.pendingRecordings.add(roomId);
+    logger.info(`Recording pending (producer'lar bekleniyor): ${roomId}`);
+    return { status: 'pending' };
+  }
+
+  /**
+   * Room için audio + video producer'ları hazır mı kontrol eder.
+   * @private
+   */
+  _hasRequiredProducers(roomId) {
+    const producers = producerConsumerManager.getProducersByRoom(roomId);
+    const hasAudio = producers.some((p) => p.kind === 'audio');
+    const hasVideo = producers.some((p) => p.kind === 'video');
+    return hasAudio && hasVideo;
+  }
+
+  /**
+   * Pending bir recording'i başlatmayı dener; producer'lar hazır değilse
+   * sessizce return eder. Producer hazır olunca event ile tetiklenir.
+   * @private
+   */
+  async _tryStartPending(roomId) {
+    if (!this.pendingRecordings.has(roomId)) {
+      return;
+    }
+    if (this.activeRecordings.has(roomId)) {
+      this.pendingRecordings.delete(roomId);
+      return;
+    }
+    if (!this._hasRequiredProducers(roomId)) {
       return;
     }
 
+    // Önce pending'den çıkar; başlatma fail olursa geri ekle.
+    this.pendingRecordings.delete(roomId);
+    try {
+      await this._doStartRecording(roomId);
+      logger.info(`Pending recording otomatik başlatıldı: ${roomId}`);
+    } catch (err) {
+      this.pendingRecordings.add(roomId);
+      throw err;
+    }
+  }
+
+  /**
+   * Asıl recording pipeline'ını kurar (PlainTransport + Consumer + FFmpeg).
+   * Bu metoda girmeden önce producer'ların hazır olduğu garantilenmelidir.
+   * @private
+   */
+  async _doStartRecording(roomId) {
     const router = mediasoupManager.getRouter(roomId);
     if (!router) {
       throw new Error(`Room bulunamadı: ${roomId}`);
@@ -58,12 +138,8 @@ class RecordingManager {
     const timestamp = Date.now();
     const outputFile = path.join(outputDir, `${roomId}_${timestamp}.webm`);
 
-    // Room'daki producer'ları bul
-    const producers = [];
-    for (const [, producer] of producerConsumerManager.producers) {
-      producers.push(producer);
-    }
-
+    // Sadece bu room'a ait producer'ları al — global Map'ten DEĞİL.
+    const producers = producerConsumerManager.getProducersByRoom(roomId);
     if (producers.length === 0) {
       throw new Error(`Room'da aktif producer yok: ${roomId}`);
     }
@@ -171,13 +247,25 @@ class RecordingManager {
 
   /**
    * Recording'i durdurur, FFmpeg'i kapatır ve S3'e yükler.
+   *
+   * İdempotenttir:
+   *   - Aktif recording yoksa, pending varsa onu temizler ve null döner.
+   *   - Tamamen yoksa null döner (hata atmaz). Bu sayede completion
+   *     flow'u hem WebSocket FINISH_DONE hem REST /complete üzerinden
+   *     güvenle çağrılabilir.
+   *
    * @param {string} roomId
-   * @returns {Promise<string>} Kaydedilen dosyanın S3 URL'si
+   * @returns {Promise<string|null>} Kaydedilen dosyanın S3 URL'si veya null
    */
   async stopRecording(roomId) {
     const recording = this.activeRecordings.get(roomId);
     if (!recording) {
-      throw new Error(`Aktif recording bulunamadı: ${roomId}`);
+      if (this.pendingRecordings.delete(roomId)) {
+        logger.info(`Pending recording iptal edildi (henüz başlamamıştı): ${roomId}`);
+      } else {
+        logger.debug(`stopRecording no-op (aktif/pending recording yok): ${roomId}`);
+      }
+      return null;
     }
 
     // FFmpeg'e graceful shutdown sinyali gönder
@@ -269,12 +357,23 @@ class RecordingManager {
   }
 
   /**
-   * Belirtilen room'un recording durumunda olup olmadığını kontrol eder.
+   * Belirtilen room'un AKTİF recording durumunda olup olmadığını kontrol eder.
+   * Pending recording'leri içermez.
    * @param {string} roomId
    * @returns {boolean}
    */
   isRecording(roomId) {
     return this.activeRecordings.has(roomId);
+  }
+
+  /**
+   * Room için bir recording rezervasyonu (aktif veya pending) var mı?
+   * Room kapatma/orphan safety akışında kullanılır.
+   * @param {string} roomId
+   * @returns {boolean}
+   */
+  hasReservation(roomId) {
+    return this.activeRecordings.has(roomId) || this.pendingRecordings.has(roomId);
   }
 }
 

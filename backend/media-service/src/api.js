@@ -104,14 +104,34 @@ router.get(
 
 /**
  * DELETE /rooms/:roomId
- * Room'u kapatır.
+ * Room'u kapatır. Aktif recording varsa önce durdurup MinIO'ya yükler;
+ * yanıt gövdesinde { closed: true, recordedVideoUrl } döndürür.
+ *
+ * Bu, "interview-service /complete'i çağırmadan room kapatıldı"
+ * senaryosunda da kayıt kaybını önler (orphan recording güvenlik ağı).
  */
 router.delete(
   '/rooms/:roomId',
   asyncHandler(async (req, res) => {
     const { roomId } = req.params;
+
+    // Aktif veya pending recording varsa stop et (idempotent; hata atmaz).
+    let recordedVideoUrl = null;
+    if (recordingManager.hasReservation(roomId)) {
+      try {
+        recordedVideoUrl = await recordingManager.stopRecording(roomId);
+        if (recordedVideoUrl) {
+          logger.info(`Room close sırasında recording durduruldu: ${roomId} → ${recordedVideoUrl}`);
+        } else {
+          logger.info(`Room close: pending recording iptal edildi: ${roomId}`);
+        }
+      } catch (err) {
+        logger.warn(`Room close: recording durdurulamadı: ${roomId} → ${err.message}`);
+      }
+    }
+
     mediasoupManager.closeRoom(roomId);
-    res.status(204).send();
+    res.status(200).json({ roomId, closed: true, recordedVideoUrl });
   })
 );
 
@@ -214,14 +234,17 @@ router.post(
 
 /**
  * POST /rooms/:roomId/recording/start
- * Server-side recording başlatır.
+ * Server-side recording başlatır. Producer'lar henüz hazır değilse
+ * pending olarak işaretlenir; producer geldiğinde otomatik başlar.
+ *
+ * Yanıt: { recording: true, roomId, status: 'active'|'pending' }
  */
 router.post(
   '/rooms/:roomId/recording/start',
   asyncHandler(async (req, res) => {
     const { roomId } = req.params;
-    await recordingManager.startRecording(roomId);
-    res.status(201).json({ recording: true, roomId });
+    const result = await recordingManager.startRecording(roomId);
+    res.status(201).json({ recording: true, roomId, status: result.status });
   })
 );
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -37,9 +39,23 @@ class _InterviewResultScreenState extends ConsumerState<InterviewResultScreen> {
   bool _candidateSaving = false;
   bool _didSyncBooking = false;
   bool _completionSyncRequested = false;
+  Timer? _bookingPollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _bookingPollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (!mounted) return;
+        ref.invalidate(_resultBookingProvider(widget.bookingId));
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _bookingPollTimer?.cancel();
     _comment.dispose();
     _candidateComment.dispose();
     super.dispose();
@@ -319,13 +335,14 @@ class _InterviewResultScreenState extends ConsumerState<InterviewResultScreen> {
                 ] else ...[
                   const SizedBox(height: 16),
                   SectionCard(
-                    title: 'Adayın uzman değerlendirmesi',
-                    subtitle: 'Bu yorum mağaza yorumlarında da görünür',
+                    title: 'Adayın değerlendirmesi',
+                    subtitle:
+                        'Bu alanı sadece aday doldurur. Yorum mağaza yorumlarında da görünür.',
                     color: const Color(0xFFFFD600),
-                    child: Text(
-                      (b.candidateComment?.isNotEmpty ?? false)
-                          ? '${b.candidateRating ?? '-'}/10 - ${b.candidateComment!}'
-                          : 'Aday henüz değerlendirme yapmadı.',
+                    child: _ReadOnlyReview(
+                      rating: b.candidateRating,
+                      comment: b.candidateComment,
+                      emptyText: 'Aday henüz seni değerlendirmedi.',
                     ),
                   ),
                 ],

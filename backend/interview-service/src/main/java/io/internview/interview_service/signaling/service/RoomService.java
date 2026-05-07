@@ -18,6 +18,7 @@ import io.internview.interview_service.signaling.error.SignalingException;
 import io.internview.interview_service.signaling.model.RoomPeerInfo;
 import io.internview.interview_service.signaling.model.SignalingMessage;
 import io.internview.interview_service.service.InterviewParticipationService;
+import io.internview.interview_service.service.InterviewSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +31,7 @@ public class RoomService {
 	private final RedisRoomRegistry redisRoomRegistry;
 	private final ObjectMapper objectMapper;
 	private final InterviewParticipationService interviewParticipationService;
+	private final InterviewSessionService interviewSessionService;
 
 	@Value("${internview.signaling.message.max-payload-bytes:65536}")
 	private int maxPayloadBytes;
@@ -54,6 +56,15 @@ public class RoomService {
 
 		SignalingMessage.PeerJoinedMessage announcement = new SignalingMessage.PeerJoinedMessage(userId, role);
 		this.broadcastExcept(roomId, userId, announcement);
+
+		// Her iki taraf da room'da ise recording'i otomatik başlat (idempotent + DB-guarded).
+		try {
+			int peerCount = this.redisRoomRegistry.listPeers(roomId).size();
+			this.interviewParticipationService.tryStartRecordingIfBothJoined(roomId, peerCount);
+		}
+		catch (Exception ex) {
+			log.warn("Auto-start recording denemesi başarısız: roomId={} hata={}", roomId, ex.getMessage());
+		}
 	}
 
 	public void leaveRoom(UUID roomId, UUID userId) {
@@ -140,6 +151,17 @@ public class RoomService {
 			return;
 		}
 		this.roomAuthorizer.assertParticipant(roomId, fromUserId);
+
+		// Backend completion: stopRecording + MinIO upload + persist + Kafka event.
+		// İdempotenttir; her iki taraftan FINISH_DONE gelse de ilk çağrı işi yapar.
+		// Forward işlemini bloklamamak için exception'lar yutulur ve loglanır.
+		try {
+			this.interviewSessionService.completeBySessionId(roomId);
+		}
+		catch (Exception ex) {
+			log.warn("FINISH_DONE backend completion başarısız: roomId={} hata={}", roomId, ex.getMessage());
+		}
+
 		SignalingMessage forward = new SignalingMessage.FinishDoneMessage(null, fromUserId);
 		this.forwardToPeer(roomId, fromUserId, msg.targetUserId(), forward);
 	}

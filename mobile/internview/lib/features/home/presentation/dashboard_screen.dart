@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -82,8 +84,67 @@ final _dashboardCandidateAvgRatingProvider =
       return avg.toDouble();
     });
 
-class DashboardScreen extends ConsumerWidget {
+final _dashboardExpertAvgRatingProvider =
+    FutureProvider.autoDispose<double?>((ref) async {
+      final page =
+          await ref.read(bookingRemoteProvider).listExpertBookings(page: 0, size: 50);
+      final ratings = page.items
+          .map((b) => b.candidateRating)
+          .whereType<int>()
+          .toList();
+      if (ratings.isEmpty) return null;
+      final avg = ratings.reduce((a, b) => a + b) / ratings.length;
+      return avg.toDouble();
+    });
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
+    with WidgetsBindingObserver {
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startPolling();
+    } else if (state == AppLifecycleState.paused) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      // Dashboard kartlarında gösterilen veri provider'larını taze tut.
+      ref.invalidate(_candidateBookingsPreviewProvider);
+      ref.invalidate(_expertBookingsPreviewProvider);
+      ref.invalidate(_dashboardCandidateAvgRatingProvider);
+      ref.invalidate(_dashboardExpertAvgRatingProvider);
+      ref.invalidate(_dashboardExpertMeProvider);
+      ref.invalidate(_dashboardMyShopProvider);
+    });
+  }
 
   bool _hasUpcomingConfirmed(List<BookingDto> items) {
     final now = DateTime.now();
@@ -129,7 +190,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final isExpert = auth?.role.toUpperCase() == 'EXPERT';
     final theme = Theme.of(context);
@@ -490,6 +551,7 @@ class _DashboardExpertTopCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final bookings = ref.watch(_expertBookingsPreviewProvider);
     final me = ref.watch(_dashboardExpertMeProvider);
+    final avgRating = ref.watch(_dashboardExpertAvgRatingProvider);
     return NeoBox(
       color: theme.colorScheme.tertiary,
       child: bookings.when(
@@ -520,9 +582,9 @@ class _DashboardExpertTopCard extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    me.when(
-                      data: (d) => RadialStatGauge(
-                        value: d.averageRating,
+                    avgRating.when(
+                      data: (v) => RadialStatGauge(
+                        value: v ?? me.valueOrNull?.averageRating,
                         max: 10,
                         label: 'Ortalama\npuan',
                         accentColor: const Color(0xFFB388FF),
@@ -532,8 +594,8 @@ class _DashboardExpertTopCard extends ConsumerWidget {
                         height: 82,
                         borderRadius: 18,
                       ),
-                      error: (_, __) => const RadialStatGauge(
-                        value: null,
+                      error: (_, __) => RadialStatGauge(
+                        value: me.valueOrNull?.averageRating,
                         max: 10,
                         label: 'Ortalama\npuan',
                       ),
@@ -589,9 +651,9 @@ class _DashboardExpertTopCard extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  me.when(
-                    data: (d) => RadialStatGauge(
-                      value: d.averageRating,
+                  avgRating.when(
+                    data: (v) => RadialStatGauge(
+                      value: v ?? me.valueOrNull?.averageRating,
                       max: 10,
                       label: 'Ortalama\npuan',
                       accentColor: const Color(0xFFB388FF),
@@ -601,8 +663,8 @@ class _DashboardExpertTopCard extends ConsumerWidget {
                       height: 82,
                       borderRadius: 18,
                     ),
-                    error: (_, __) => const RadialStatGauge(
-                      value: null,
+                    error: (_, __) => RadialStatGauge(
+                      value: me.valueOrNull?.averageRating,
                       max: 10,
                       label: 'Ortalama\npuan',
                     ),

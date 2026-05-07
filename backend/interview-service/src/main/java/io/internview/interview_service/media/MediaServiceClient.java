@@ -3,6 +3,7 @@ package io.internview.interview_service.media;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import io.internview.interview_service.media.dto.MediaServiceDtos.CloseRoomResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ConnectTransportRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ConsumeRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ConsumeResponse;
@@ -61,16 +62,19 @@ public class MediaServiceClient {
 	}
 
 	/**
-	 * Room'u kapatır.
+	 * Room'u kapatır. Aktif recording varsa media-service kapatma sırasında
+	 * onu da durdurup MinIO'ya yükler ve yanıt gövdesinde {@code recordedVideoUrl} döndürür.
 	 *
 	 * @param roomId Room ID
+	 * @return varsa orphan recording'in MinIO URL'i, yoksa {@code null}
 	 */
-	public void closeRoom(String roomId) {
+	public String closeRoom(String roomId) {
 		log.info("Media Service: Room kapatılıyor: {}", roomId);
-		this.mediaServiceRestClient.delete()
+		CloseRoomResponse response = this.mediaServiceRestClient.delete()
 			.uri("/rooms/{roomId}", roomId)
 			.retrieve()
-			.toBodilessEntity();
+			.body(CloseRoomResponse.class);
+		return response != null ? response.getRecordedVideoUrl() : null;
 	}
 
 	// ── Transport ────────────────────────────────────
