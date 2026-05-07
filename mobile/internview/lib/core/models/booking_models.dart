@@ -64,6 +64,8 @@ class BookingDto {
     required this.scheduledEnd,
     this.expertRating,
     this.expertComment,
+    this.candidateRating,
+    this.candidateComment,
   });
 
   final String id;
@@ -75,6 +77,8 @@ class BookingDto {
   final DateTime scheduledEnd;
   final int? expertRating;
   final String? expertComment;
+  final int? candidateRating;
+  final String? candidateComment;
 
   factory BookingDto.fromJson(Map<String, dynamic> j) {
     return BookingDto(
@@ -87,6 +91,8 @@ class BookingDto {
       scheduledEnd: DateTime.parse(j['scheduledEnd'] as String),
       expertRating: (j['expertRating'] as num?)?.toInt(),
       expertComment: j['expertComment'] as String?,
+      candidateRating: (j['candidateRating'] as num?)?.toInt(),
+      candidateComment: j['candidateComment'] as String?,
     );
   }
 }

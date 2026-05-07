@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../config/env.dart';
+
 /// JWT `sub` (UUID string).
 String? decodeJwtSub(String token) {
   try {
@@ -24,6 +26,33 @@ String? decodeJwtRole(String token) {
   } catch (_) {
     return null;
   }
+}
+
+String? normalizeAvatarUrl(String? raw) {
+  if (raw == null) return null;
+  final v = raw.trim();
+  if (v.isEmpty) return null;
+
+  // Zaten gateway üzerinden servis ediliyorsa dokunma.
+  if (v.startsWith('${Env.apiBaseUrl}/')) return v;
+
+  // media-service yeni formatı: http://<host>:3000/media/files/<key>
+  // veya http://media-service:3000/media/files/<key>
+  final mediaFilesIdx = v.indexOf('/media/files/');
+  if (mediaFilesIdx >= 0) {
+    final path = v.substring(mediaFilesIdx);
+    return '${Env.apiBaseUrl}$path';
+  }
+
+  // MinIO direct link: http://minio:9000/<bucket>/avatars/...
+  final minioIdx = v.indexOf('/avatars/');
+  if (minioIdx >= 0) {
+    final key = v.substring(minioIdx + 1); // "avatars/..."
+    return '${Env.apiBaseUrl}/media/files/${Uri.encodeComponent(key)}';
+  }
+
+  // Aksi halde olduğu gibi bırak.
+  return v;
 }
 
 class MeData {
@@ -81,7 +110,7 @@ class UserProfile {
       email: j['email'] as String? ?? '',
       firstName: j['firstName'] as String? ?? '',
       lastName: j['lastName'] as String? ?? '',
-      avatarUrl: j['avatarUrl'] as String?,
+      avatarUrl: normalizeAvatarUrl(j['avatarUrl'] as String?),
       role: j['role']?.toString() ?? 'CANDIDATE',
       createdAt: _parseInstant(j['createdAt']),
       updatedAt: _parseInstant(j['updatedAt']),
@@ -160,7 +189,7 @@ class ExpertSummary {
       userId: j['userId'].toString(),
       firstName: j['firstName'] as String? ?? '',
       lastName: j['lastName'] as String? ?? '',
-      avatarUrl: j['avatarUrl'] as String?,
+      avatarUrl: normalizeAvatarUrl(j['avatarUrl'] as String?),
       headline: j['headline'] as String?,
       company: j['company'] as String?,
       industry: j['industry'] != null
@@ -233,7 +262,7 @@ class ExpertDetail {
       email: j['email'] as String?,
       firstName: j['firstName'] as String? ?? '',
       lastName: j['lastName'] as String? ?? '',
-      avatarUrl: j['avatarUrl'] as String?,
+      avatarUrl: normalizeAvatarUrl(j['avatarUrl'] as String?),
       headline: j['headline'] as String?,
       bio: j['bio'] as String?,
       company: j['company'] as String?,
