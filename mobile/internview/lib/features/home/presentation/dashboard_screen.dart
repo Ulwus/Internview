@@ -570,8 +570,13 @@ class _DashboardExpertTopCard extends ConsumerWidget {
           ],
         ),
         data: (page) {
+          final now = DateTime.now();
           final confirmed = page.items
-              .where((b) => b.status.name.toUpperCase() == 'CONFIRMED')
+              .where(
+                (b) =>
+                    b.status.name.toUpperCase() == 'CONFIRMED' &&
+                    b.scheduledEnd.toLocal().isAfter(now),
+              )
               .toList();
           confirmed.sort(
             (a, b) => a.scheduledStart.compareTo(b.scheduledStart),

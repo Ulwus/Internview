@@ -26,14 +26,19 @@ String joinCtaLabel(BookingDto b) {
     case BookingStatus.completed:
       return 'Tamamlandı';
     case BookingStatus.confirmed:
+      final n = DateTime.now();
+      final start = b.scheduledStart.toLocal();
+      final end = b.scheduledEnd.toLocal();
+
+      // Seans saati geçtiyse "zamanı gelmedi" demeyelim.
+      if (end.isBefore(n)) return 'Geçmiş';
+
       final canJoin = joinWindowAllowed(b);
       if (canJoin) {
         final secs = secondsUntilEnd(b);
         if (secs <= 60 && secs >= 0) return 'Son $secs sn';
         return 'Katıl';
       }
-      final n = DateTime.now();
-      final start = b.scheduledStart.toLocal();
       if (start.isAfter(n) && start.isBefore(n.add(const Duration(days: 7)))) {
         final days = start.difference(DateTime(n.year, n.month, n.day)).inDays;
         if (days <= 0) return 'Yakında';
