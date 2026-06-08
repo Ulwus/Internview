@@ -1,65 +1,124 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ExpertSummary, Industry, fullName, loadLandingData } from "@/lib/api";
+import { AnimatedActionButton, DetailHeaderCard, PenkrowdCard, SectionCard, StatusChip } from "@/components/penkrowd";
+
+export default function LandingPage() {
+  const [experts, setExperts] = useState<ExpertSummary[]>([]);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [totalExperts, setTotalExperts] = useState(0);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadLandingData()
+      .then((data) => {
+        setExperts(data.experts.items);
+        setIndustries(data.industries);
+        setTotalExperts(data.experts.totalElements);
+        setStatus("ready");
+      })
+      .catch((err: Error) => {
+        setStatus("error");
+        setError(err.message);
+      });
+  }, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="landing-shell">
+      <header className="landing-nav">
+        <Link className="brand-block link-reset" href="/">
+          <span className="brand-mark">IV</span>
+          <div>
+            <p className="eyebrow">Internview</p>
+            <h1>Canlı mülakat, kayıt, analiz</h1>
+          </div>
+        </Link>
+        <div className="top-actions">
+          <AnimatedActionButton href="/login" color="white">
+            Giriş yap
+          </AnimatedActionButton>
+          <AnimatedActionButton href="/register" color="cyan">
+            Kayıt ol
+          </AnimatedActionButton>
+        </div>
+      </header>
+
+      <section className="landing-hero">
+        <div className="hero-copy">
+          <p className="eyebrow">Web, mobil ve sunucu taraflı kayıt</p>
+          <h2>Mülakatı yürüt. Kaydı al. Konuşmayı rapora çevir.</h2>
+          <p>
+            Adaylar uygun uzmanları seçer, mülakatçılar müsaitliklerini yönetir. Görüşme verileri,
+            booking ve analiz akışı Internview servislerinden gelir.
           </p>
+          <div className="top-actions hero-actions">
+            <AnimatedActionButton href="/register" color="cyan">
+              Hemen başla
+            </AnimatedActionButton>
+            <AnimatedActionButton href="/login" color="yellow">
+              Panelime git
+            </AnimatedActionButton>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        <PenkrowdCard accent="cyan" className="landing-live-card">
+          <div className="section-title row">
+            <div>
+              <p className="eyebrow">Backend durumu</p>
+              <h2>{status === "loading" ? "Veriler alınıyor" : status === "ready" ? "Servis verisi" : "Bağlantı gerekli"}</h2>
+            </div>
+            <StatusChip tone={status === "ready" ? "cyan" : status === "error" ? "red" : "white"}>
+              {status === "loading" ? "yükleniyor" : status === "ready" ? "hazır" : "hata"}
+            </StatusChip>
+          </div>
+
+          {status === "error" ? (
+            <p className="muted-copy">{error}</p>
+          ) : (
+            <div className="landing-stats">
+              <div>
+                <strong>{status === "ready" ? totalExperts : "..."}</strong>
+                <span>uygun uzman</span>
+              </div>
+              <div>
+                <strong>{status === "ready" ? industries.length : "..."}</strong>
+                <span>sektör</span>
+              </div>
+            </div>
+          )}
+        </PenkrowdCard>
+      </section>
+
+      <section className="landing-data-grid">
+        <SectionCard title="Uygun uzmanlar" subtitle="/experts" action={<StatusChip>{experts.length}</StatusChip>}>
+          <div className="expert-list">
+            {experts.map((expert) => (
+              <DetailHeaderCard
+                accent="cyan"
+                fallbackLetter={fullName(expert).charAt(0) || "U"}
+                key={expert.id}
+                subtitle={expert.headline || expert.company || expert.industry?.name || "Profil bilgisi bekleniyor"}
+                title={fullName(expert)}
+              />
+            ))}
+            {status === "ready" && experts.length === 0 ? <p className="muted-copy">Backend uygun uzman döndürmedi.</p> : null}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Sektörler" subtitle="/industries">
+          <div className="tag-cloud">
+            {industries.map((industry) => (
+              <StatusChip tone="cyan" key={industry.id}>
+                {industry.name}
+              </StatusChip>
+            ))}
+            {status === "ready" && industries.length === 0 ? <p className="muted-copy">Backend sektör döndürmedi.</p> : null}
+          </div>
+        </SectionCard>
+      </section>
+    </main>
   );
 }
