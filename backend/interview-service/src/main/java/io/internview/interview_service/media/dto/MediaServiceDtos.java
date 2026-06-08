@@ -95,6 +95,25 @@ public final class MediaServiceDtos {
 		private Object rtpParameters;
 	}
 
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class ProducerSummary {
+		private String id;
+		private String kind;
+	}
+
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class ProducerListResponse {
+		private List<ProducerSummary> producers;
+	}
+
 	// ── Consumer ──────────────────────────────────────
 
 	@Data

@@ -1,48 +1,59 @@
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-import os
+
 import httpx
-from sqlalchemy import create_engine, text
+from fastapi import FastAPI
 
-# ── Database ────────────────────────────────────────────
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://internview:internview_password@localhost:5432/internview",
+from app.config import settings
+from app.database import init_database, ping_database
+from app.kafka_bus import kafka_bus
+from app.pipeline import analyze_interview_completed, analyze_recording_segment, analyze_request
+from app.schemas import AnalyzeRequest, AnalyzeResponse
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_database()
+    kafka_bus.start_consumer(handle_kafka_event)
+    yield
+    kafka_bus.stop()
+
+
+def handle_kafka_event(event_name, payload):
+    if event_name == "interview_completed":
+        return analyze_interview_completed(payload)
+    if event_name == "recording_segment":
+        return analyze_recording_segment(payload)
+    return None
+
+
+app = FastAPI(
+    title="Internview AI Analysis Service",
+    version="1.0.0",
+    lifespan=lifespan,
 )
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-
-# ── Consul ──────────────────────────────────────────────
-CONSUL_URL = os.getenv("CONSUL_URL", "http://localhost:8500")
-
-app = FastAPI(title="Internview AI Analysis Service", version="1.0.0")
 
 
 @app.get("/health")
 async def health_check():
-    """Health endpoint that pings PostgreSQL and Consul."""
     checks: dict[str, str] = {}
 
-    # PostgreSQL ping
     try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+        ping_database()
         checks["postgresql"] = "UP"
     except Exception as exc:
         checks["postgresql"] = f"DOWN ({exc.__class__.__name__})"
 
-    # Consul ping
     try:
         async with httpx.AsyncClient(timeout=3) as client:
-            resp = await client.get(f"{CONSUL_URL}/v1/status/leader")
+            resp = await client.get(f"{settings.consul_url}/v1/status/leader")
             checks["consul"] = "UP" if resp.status_code == 200 else "DOWN"
     except Exception as exc:
         checks["consul"] = f"DOWN ({exc.__class__.__name__})"
 
-    overall = "healthy" if all(v == "UP" for v in checks.values()) else "degraded"
+    overall = "healthy" if all(value == "UP" for value in checks.values()) else "degraded"
     return {"status": overall, "components": checks}
 
 
-@app.post("/api/v1/analyze")
-def analyze_video():
-    # TODO: Implement Whisper audio extraction and speech-to-text here
-    return {"message": "Analysis endpoint placeholder"}
+@app.post("/api/v1/analyze", response_model=AnalyzeResponse)
+def analyze_video(request: AnalyzeRequest) -> AnalyzeResponse:
+    return analyze_request(request)

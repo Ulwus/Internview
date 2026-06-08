@@ -103,7 +103,18 @@ const config = {
   // ── Recording ──────────────────────────────────────
   recording: {
     outputDir: process.env.RECORDING_OUTPUT_DIR || '/tmp/internview-recordings',
+    segmentSeconds: parseInt(process.env.RECORDING_SEGMENT_SECONDS, 10) || 10,
     format: 'webm', // VP8/Opus stream copy uyumlu
+  },
+
+  kafka: {
+    enabled: process.env.KAFKA_ENABLED !== 'false',
+    clientId: process.env.KAFKA_CLIENT_ID || 'media-service',
+    brokers: (process.env.KAFKA_BOOTSTRAP_SERVERS || 'localhost:29092')
+      .split(',')
+      .map((broker) => broker.trim())
+      .filter(Boolean),
+    recordingSegmentsTopic: process.env.RECORDING_SEGMENTS_TOPIC || 'recording-segments',
   },
 };
 
