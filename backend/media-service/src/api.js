@@ -123,6 +123,22 @@ router.post(
 );
 
 /**
+ * GET /rooms/:roomId/producers
+ * Room'daki producer özetlerini döndürür.
+ */
+router.get(
+  '/rooms/:roomId/producers',
+  asyncHandler(async (req, res) => {
+    const { roomId } = req.params;
+    const routerObj = mediasoupManager.getRouter(roomId);
+    if (!routerObj) {
+      return res.status(404).json({ error: `Room bulunamadı: ${roomId}` });
+    }
+    res.json({ producers: producerConsumerManager.listProducerSummaries(roomId) });
+  })
+);
+
+/**
  * POST /transports/:transportId/consume
  * Consumer oluşturur.
  * Body: { roomId: string, producerId: string, rtpCapabilities: object }

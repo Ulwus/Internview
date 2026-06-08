@@ -1,9 +1,10 @@
 # ── Build Stage ─────────────────────────────────────────
 # Mediasoup C++ native bağımlılıklarını derlemek için gerekli araçlar
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 
 RUN apt-get update && apt-get install -y \
     python3 \
+    python3-pip \
     make \
     g++ \
     gcc \
@@ -15,7 +16,7 @@ RUN npm install --production
 COPY . .
 
 # ── Production Stage ───────────────────────────────────
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # FFmpeg — recording pipeline için gerekli
 RUN apt-get update && apt-get install -y \
