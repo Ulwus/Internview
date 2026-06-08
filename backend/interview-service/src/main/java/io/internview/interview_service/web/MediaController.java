@@ -23,6 +23,7 @@ import io.internview.interview_service.media.dto.MediaServiceDtos.ConsumeRespons
 import io.internview.interview_service.media.dto.MediaServiceDtos.CreateTransportResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ProduceRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ProduceResponse;
+import io.internview.interview_service.media.dto.MediaServiceDtos.ProducerListResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStartResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStopResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RouterCapabilitiesResponse;
@@ -108,6 +109,16 @@ public class MediaController {
 		this.assertParticipant(sessionId, jwt);
 		ProduceResponse response = this.mediaServiceClient.produce(transportId, request);
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
+	}
+
+	@GetMapping("/producers")
+	public ResponseEntity<ProducerListResponse> listProducers(
+		@PathVariable UUID sessionId,
+		@AuthenticationPrincipal Jwt jwt
+	) {
+		InterviewSession session = this.assertParticipant(sessionId, jwt);
+		ProducerListResponse response = this.mediaServiceClient.listProducers(session.getId().toString());
+		return ResponseEntity.ok(response);
 	}
 
 	/**

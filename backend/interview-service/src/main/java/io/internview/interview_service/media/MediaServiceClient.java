@@ -11,6 +11,7 @@ import io.internview.interview_service.media.dto.MediaServiceDtos.CreateRoomResp
 import io.internview.interview_service.media.dto.MediaServiceDtos.CreateTransportResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ProduceRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ProduceResponse;
+import io.internview.interview_service.media.dto.MediaServiceDtos.ProducerListResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStartResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RecordingStopResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.RouterCapabilitiesResponse;
@@ -120,6 +121,13 @@ public class MediaServiceClient {
 			.body(request)
 			.retrieve()
 			.body(ProduceResponse.class);
+	}
+
+	public ProducerListResponse listProducers(String roomId) {
+		return this.mediaServiceRestClient.get()
+			.uri("/rooms/{roomId}/producers", roomId)
+			.retrieve()
+			.body(ProducerListResponse.class);
 	}
 
 	/**

@@ -194,6 +194,9 @@ services:
       MEDIASOUP_MIN_PORT: ${MEDIASOUP_MIN_PORT:-40000}
       MEDIASOUP_MAX_PORT: ${MEDIASOUP_MAX_PORT:-40099}
       MEDIASOUP_LOG_LEVEL: ${MEDIASOUP_LOG_LEVEL:-warn}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RECORDING_SEGMENTS_TOPIC: recording-segments
+      RECORDING_SEGMENT_SECONDS: ${RECORDING_SEGMENT_SECONDS:-10}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
@@ -205,6 +208,39 @@ services:
       - "${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}:${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}/udp"
     depends_on:
       - minio
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+    restart: unless-stopped
+
+  ai-analysis-service:
+    build:
+      context: ../backend/ai-analysis-service
+    container_name: internview-ai-analysis-service
+    environment:
+      DATABASE_URL: postgresql://internview:${POSTGRES_PASSWORD:-internview_password}@postgres:5432/${POSTGRES_DB:-internview}
+      CONSUL_URL: http://consul:8500
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INTERVIEW_EVENTS_TOPIC: interview-events
+      ANALYSIS_EVENTS_TOPIC: analysis-events
+      ENABLE_KAFKA_CONSUMER: "true"
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_DOWNLOAD_ROOT: /models/whisper
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-internview-recordings}
+      S3_FORCE_PATH_STYLE: "true"
+      RECORDING_SEGMENTS_TOPIC: recording-segments
+    ports:
+      - "8000:8000"
+    volumes:
+      - ${WHISPER_CACHE_HOST_DIR:-/Volumes/M2SSD/internview/whisper-cache}:/models/whisper
+    depends_on:
+      - postgres
+      - kafka
+      - minio
+      - consul
     networks:
       - ${DOCKER_NETWORK:-internview-net}
     restart: unless-stopped
@@ -249,4 +285,3 @@ networks:
   internview-net:
     name: ${DOCKER_NETWORK:-internview-net}
     driver: bridge
-

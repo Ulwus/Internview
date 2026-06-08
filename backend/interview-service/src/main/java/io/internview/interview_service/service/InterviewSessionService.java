@@ -59,10 +59,23 @@ public class InterviewSessionService {
 		InterviewSession session = this.repository.findByBookingId(bookingId)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mülakat oturumu bulunamadı."));
 
+		this.ensureParticipant(session, userId);
+		return session;
+	}
+
+	@Transactional(readOnly = true)
+	public InterviewSession getByIdForParticipant(UUID sessionId, UUID userId) {
+		InterviewSession session = this.repository.findById(sessionId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mülakat oturumu bulunamadı."));
+
+		this.ensureParticipant(session, userId);
+		return session;
+	}
+
+	private void ensureParticipant(InterviewSession session, UUID userId) {
 		if (!session.getCandidateId().equals(userId) && !session.getExpertId().equals(userId)) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu oturuma erişim yetkiniz yok.");
 		}
-		return session;
 	}
 
 	@Transactional
