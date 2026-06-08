@@ -1,5 +1,6 @@
 'use strict';
 
+const { EventEmitter } = require('events');
 const logger = require('./logger');
 const mediasoupManager = require('./mediasoup-manager');
 const transportManager = require('./transport-manager');
@@ -9,9 +10,16 @@ const transportManager = require('./transport-manager');
  *
  * Producer: Client medya akışını sunucuya gönderir.
  * Consumer: Sunucu medya akışını diğer client'a yönlendirir.
+ *
+ * Olaylar:
+ *   - 'producerCreated' { roomId, producer } → Yeni producer hazır olduğunda
+ *     yayınlanır. RecordingManager bunu dinleyerek pending recording'leri
+ *     producer'lar gelince otomatik başlatır.
  */
-class ProducerConsumerManager {
+class ProducerConsumerManager extends EventEmitter {
   constructor() {
+    super();
+
     /** @type {Map<string, mediasoup.types.Producer>} producerId → Producer */
     this.producers = new Map();
 
@@ -32,7 +40,13 @@ class ProducerConsumerManager {
       throw new Error(`Transport bulunamadı: ${transportId}`);
     }
 
-    const producer = await transport.produce({ kind, rtpParameters });
+    const roomId = transport.appData && transport.appData.roomId;
+
+    const producer = await transport.produce({
+      kind,
+      rtpParameters,
+      appData: { roomId },
+    });
 
     this.producers.set(producer.id, producer);
 
@@ -45,13 +59,49 @@ class ProducerConsumerManager {
       this.producers.delete(producer.id);
     });
 
-    logger.info(`Producer oluşturuldu: ${producer.id} (kind=${kind})`);
+    logger.info(`Producer oluşturuldu: ${producer.id} (kind=${kind}, room=${roomId})`);
+
+    // Pending recording'ler için otomatik tetik. Listener exception'ları
+    // produce yanıtını etkilemesin diye try/catch içine alındı.
+    try {
+      this.emit('producerCreated', { roomId, producer });
+    } catch (err) {
+      logger.warn(`producerCreated emit hatası: ${err.message}`);
+    }
 
     return {
       id: producer.id,
       kind: producer.kind,
       rtpParameters: producer.rtpParameters,
     };
+  }
+
+  /**
+   * Belirtilen room'a ait producer'ları döndürür.
+   * @param {string} roomId
+   * @returns {mediasoup.types.Producer[]}
+   */
+  getProducersByRoom(roomId) {
+    const result = [];
+    for (const producer of this.producers.values()) {
+      const pRoomId = producer.appData && producer.appData.roomId;
+      if (pRoomId === roomId) {
+        result.push(producer);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Client'ların consume edebilmesi için room producer özetlerini döndürür.
+   * @param {string} roomId
+   * @returns {Array<{id:string, kind:string}>}
+   */
+  listProducerSummaries(roomId) {
+    return this.getProducersByRoom(roomId).map((producer) => ({
+      id: producer.id,
+      kind: producer.kind,
+    }));
   }
 
   /**

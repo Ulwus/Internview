@@ -9,6 +9,8 @@ const mediasoupManager = require('./mediasoup-manager');
 const transportManager = require('./transport-manager');
 const producerConsumerManager = require('./producer-consumer-manager');
 const s3Uploader = require('./s3-uploader');
+const kafkaPublisher = require('./kafka-publisher');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Server-side recording yönetimi.
@@ -16,36 +18,116 @@ const s3Uploader = require('./s3-uploader');
  * PlainTransport üzerinden RTP akışını FFmpeg'e yönlendirir,
  * FFmpeg stream copy ile .webm dosyasına kaydeder.
  * Kayıt tamamlanınca dosyayı S3'e yükler.
+ *
+ * Pending recording: startRecording çağrıldığında producer'lar henüz
+ * hazır değilse "pending" işaretlenir. ProducerConsumerManager'dan
+ * gelen 'producerCreated' eventi ile producer'lar hazır olduğunda
+ * otomatik başlatılır. Bu sayede signaling tarafı (interview-service)
+ * peer'lar room'a girer girmez recording isteyebilir; media plane
+ * hazır olur olmaz pipeline gerçekten başlar.
  */
 class RecordingManager {
   constructor() {
     /**
-     * roomId → { process, filePath, audioConsumer, videoConsumer,
-     *            audioTransport, videoTransport }
+     * roomId → { process, segmentDir, segmentPattern, transports, consumers, uploadedSegments, uploadTimer }
      * @type {Map<string, object>}
      */
     this.activeRecordings = new Map();
+
+    /**
+     * Producer'ları bekleyen pending recording'ler.
+     * @type {Set<string>}
+     */
+    this.pendingRecordings = new Set();
+
+    // Producer hazır olduğunda pending recording'i başlatmayı dene.
+    producerConsumerManager.on('producerCreated', ({ roomId }) => {
+      this._tryStartPending(roomId).catch((err) => {
+        logger.warn(`Pending recording start denemesi başarısız: ${roomId} → ${err.message}`);
+      });
+    });
   }
 
   /**
    * Belirtilen room için recording başlatır.
    *
-   * Adımlar:
-   * 1. Audio ve video producer'larını bul
-   * 2. PlainTransport oluştur (her biri için)
-   * 3. Consumer oluştur → PlainTransport'a bağla
-   * 4. SDP dosyası oluştur
-   * 5. FFmpeg spawn et
+   * Producer'lar (audio + video) hazırsa hemen başlar; değilse pending
+   * olarak işaretlenir ve producer geldiğinde otomatik başlatılır.
    *
    * @param {string} roomId
-   * @returns {Promise<void>}
+   * @returns {Promise<{ status: 'active'|'pending' }>}
    */
   async startRecording(roomId) {
     if (this.activeRecordings.has(roomId)) {
-      logger.warn(`Room zaten kaydediliyor: ${roomId}`);
+      logger.info(`Room zaten kaydediliyor (idempotent): ${roomId}`);
+      return { status: 'active' };
+    }
+
+    if (this.pendingRecordings.has(roomId)) {
+      logger.info(`Room recording pending (idempotent): ${roomId}`);
+      return { status: 'pending' };
+    }
+
+    const router = mediasoupManager.getRouter(roomId);
+    if (!router) {
+      throw new Error(`Room bulunamadı: ${roomId}`);
+    }
+
+    if (this._hasRequiredProducers(roomId)) {
+      await this._doStartRecording(roomId);
+      return { status: 'active' };
+    }
+
+    this.pendingRecordings.add(roomId);
+    logger.info(`Recording pending (producer'lar bekleniyor): ${roomId}`);
+    return { status: 'pending' };
+  }
+
+  /**
+   * Room için audio + video producer'ları hazır mı kontrol eder.
+   * @private
+   */
+  _hasRequiredProducers(roomId) {
+    const producers = producerConsumerManager.getProducersByRoom(roomId);
+    const hasAudio = producers.some((p) => p.kind === 'audio');
+    const hasVideo = producers.some((p) => p.kind === 'video');
+    return hasAudio && hasVideo;
+  }
+
+  /**
+   * Pending bir recording'i başlatmayı dener; producer'lar hazır değilse
+   * sessizce return eder. Producer hazır olunca event ile tetiklenir.
+   * @private
+   */
+  async _tryStartPending(roomId) {
+    if (!this.pendingRecordings.has(roomId)) {
+      return;
+    }
+    if (this.activeRecordings.has(roomId)) {
+      this.pendingRecordings.delete(roomId);
+      return;
+    }
+    if (!this._hasRequiredProducers(roomId)) {
       return;
     }
 
+    // Önce pending'den çıkar; başlatma fail olursa geri ekle.
+    this.pendingRecordings.delete(roomId);
+    try {
+      await this._doStartRecording(roomId);
+      logger.info(`Pending recording otomatik başlatıldı: ${roomId}`);
+    } catch (err) {
+      this.pendingRecordings.add(roomId);
+      throw err;
+    }
+  }
+
+  /**
+   * Asıl recording pipeline'ını kurar (PlainTransport + Consumer + FFmpeg).
+   * Bu metoda girmeden önce producer'ların hazır olduğu garantilenmelidir.
+   * @private
+   */
+  async _doStartRecording(roomId) {
     const router = mediasoupManager.getRouter(roomId);
     if (!router) {
       throw new Error(`Room bulunamadı: ${roomId}`);
@@ -55,15 +137,13 @@ class RecordingManager {
     const outputDir = config.recording.outputDir;
     fs.mkdirSync(outputDir, { recursive: true });
 
-    const timestamp = Date.now();
-    const outputFile = path.join(outputDir, `${roomId}_${timestamp}.webm`);
+    const startedAt = Date.now();
+    const segmentDir = path.join(outputDir, roomId, String(startedAt));
+    fs.mkdirSync(segmentDir, { recursive: true });
+    const segmentPattern = path.join(segmentDir, '%06d.webm');
 
-    // Room'daki producer'ları bul
-    const producers = [];
-    for (const [, producer] of producerConsumerManager.producers) {
-      producers.push(producer);
-    }
-
+    // Sadece bu room'a ait producer'ları al — global Map'ten DEĞİL.
+    const producers = producerConsumerManager.getProducersByRoom(roomId);
     if (producers.length === 0) {
       throw new Error(`Room'da aktif producer yok: ${roomId}`);
     }
@@ -71,9 +151,15 @@ class RecordingManager {
     // Her producer için PlainTransport + Consumer oluştur
     const recordingState = {
       process: null,
-      filePath: outputFile,
+      roomId,
+      startedAt,
+      segmentDir,
+      segmentPattern,
       transports: [],
       consumers: [],
+      uploadedSegments: new Set(),
+      uploadedUrls: [],
+      uploadTimer: null,
     };
 
     const audioProducer = producers.find((p) => p.kind === 'audio');
@@ -129,7 +215,7 @@ class RecordingManager {
 
     // SDP dosyası oluştur
     const sdpContent = this._buildSdp(audioTransportInfo, videoTransportInfo);
-    const sdpFile = path.join(outputDir, `${roomId}_${timestamp}.sdp`);
+    const sdpFile = path.join(segmentDir, `${roomId}.sdp`);
     fs.writeFileSync(sdpFile, sdpContent);
 
     logger.info(`Recording SDP oluşturuldu: ${sdpFile}`);
@@ -141,8 +227,12 @@ class RecordingManager {
       '-i', sdpFile,
       '-c', 'copy',
       '-flags', '+global_header',
+      '-f', 'segment',
+      '-segment_time', String(config.recording.segmentSeconds),
+      '-reset_timestamps', '1',
+      '-segment_format', config.recording.format,
       '-y',
-      outputFile,
+      segmentPattern,
     ];
 
     logger.info(`FFmpeg başlatılıyor: ffmpeg ${ffmpegArgs.join(' ')}`);
@@ -164,20 +254,37 @@ class RecordingManager {
     });
 
     recordingState.process = ffmpegProcess;
+    recordingState.uploadTimer = setInterval(() => {
+      this._uploadClosedSegments(roomId, false).catch((err) => {
+        logger.warn(`Segment upload döngüsü başarısız: ${roomId} → ${err.message}`);
+      });
+    }, 2000);
     this.activeRecordings.set(roomId, recordingState);
 
-    logger.info(`Recording başladı: ${roomId} → ${outputFile}`);
+    logger.info(`Segmentli recording başladı: ${roomId} → ${segmentPattern}`);
   }
 
   /**
    * Recording'i durdurur, FFmpeg'i kapatır ve S3'e yükler.
+   *
+   * İdempotenttir:
+   *   - Aktif recording yoksa, pending varsa onu temizler ve null döner.
+   *   - Tamamen yoksa null döner (hata atmaz). Bu sayede completion
+   *     flow'u hem WebSocket FINISH_DONE hem REST /complete üzerinden
+   *     güvenle çağrılabilir.
+   *
    * @param {string} roomId
-   * @returns {Promise<string>} Kaydedilen dosyanın S3 URL'si
+   * @returns {Promise<string|null>} Kaydedilen dosyanın S3 URL'si veya null
    */
   async stopRecording(roomId) {
     const recording = this.activeRecordings.get(roomId);
     if (!recording) {
-      throw new Error(`Aktif recording bulunamadı: ${roomId}`);
+      if (this.pendingRecordings.delete(roomId)) {
+        logger.info(`Pending recording iptal edildi (henüz başlamamıştı): ${roomId}`);
+      } else {
+        logger.debug(`stopRecording no-op (aktif/pending recording yok): ${roomId}`);
+      }
+      return null;
     }
 
     // FFmpeg'e graceful shutdown sinyali gönder
@@ -201,6 +308,11 @@ class RecordingManager {
       });
     }
 
+    if (recording.uploadTimer) {
+      clearInterval(recording.uploadTimer);
+      recording.uploadTimer = null;
+    }
+
     // Consumer'ları kapat
     for (const consumer of recording.consumers) {
       consumer.close();
@@ -213,32 +325,95 @@ class RecordingManager {
 
     this.activeRecordings.delete(roomId);
 
-    // S3'e yükle
-    let s3Url = null;
-    if (fs.existsSync(recording.filePath)) {
-      const fileStats = fs.statSync(recording.filePath);
-      if (fileStats.size > 0) {
-        const timestamp = Date.now();
-        const s3Key = `recordings/${roomId}/${timestamp}.webm`;
-        s3Url = await s3Uploader.upload(recording.filePath, s3Key);
-
-        // Local dosyayı temizle
-        fs.unlinkSync(recording.filePath);
-        logger.info(`Local recording dosyası silindi: ${recording.filePath}`);
-      } else {
-        logger.warn(`Recording dosyası boş: ${recording.filePath}`);
-        fs.unlinkSync(recording.filePath);
-      }
-    }
+    await this._uploadClosedSegments(roomId, true, recording);
 
     // SDP dosyasını temizle
-    const sdpFile = recording.filePath.replace('.webm', '.sdp');
+    const sdpFile = path.join(recording.segmentDir, `${roomId}.sdp`);
     if (fs.existsSync(sdpFile)) {
       fs.unlinkSync(sdpFile);
     }
 
-    logger.info(`Recording durduruldu: ${roomId}${s3Url ? ` → ${s3Url}` : ''}`);
-    return s3Url;
+    const manifest = await this._uploadManifest(recording);
+    try {
+      fs.rmSync(recording.segmentDir, { recursive: true, force: true });
+    } catch (err) {
+      logger.debug(`Segment dizini temizlenemedi: ${recording.segmentDir} → ${err.message}`);
+    }
+
+    logger.info(`Recording durduruldu: ${roomId}${manifest ? ` → ${manifest}` : ''}`);
+    return manifest;
+  }
+
+  async _uploadClosedSegments(roomId, includeLast = false, explicitRecording = null) {
+    const recording = explicitRecording || this.activeRecordings.get(roomId);
+    if (!recording || !fs.existsSync(recording.segmentDir)) {
+      return;
+    }
+
+    const files = fs.readdirSync(recording.segmentDir)
+      .filter((file) => file.endsWith('.webm'))
+      .sort();
+    const candidates = includeLast ? files : files.slice(0, Math.max(0, files.length - 1));
+
+    for (const file of candidates) {
+      if (recording.uploadedSegments.has(file)) {
+        continue;
+      }
+
+      const filePath = path.join(recording.segmentDir, file);
+      const stats = fs.statSync(filePath);
+      if (stats.size === 0) {
+        continue;
+      }
+      if (!includeLast && Date.now() - stats.mtimeMs < 1500) {
+        continue;
+      }
+
+      const segmentIndex = parseInt(path.basename(file, '.webm'), 10);
+      const startSecond = segmentIndex * config.recording.segmentSeconds;
+      const endSecond = startSecond + config.recording.segmentSeconds;
+      const rangeName = `${this._padSecond(startSecond)}-${this._padSecond(endSecond)}.webm`;
+      const s3Key = `recordings/${roomId}/${rangeName}`;
+      const url = await s3Uploader.upload(filePath, s3Key);
+
+      const uploadedAt = new Date().toISOString();
+      const segmentInfo = {
+        event_id: `evt-${uuidv4()}`,
+        timestamp: uploadedAt,
+        session_id: roomId,
+        segment_index: segmentIndex,
+        start_second: startSecond,
+        end_second: endSecond,
+        duration_seconds: config.recording.segmentSeconds,
+        recorded_video_url: url,
+        s3_key: s3Key,
+      };
+
+      recording.uploadedSegments.add(file);
+      recording.uploadedUrls.push(segmentInfo);
+      await kafkaPublisher.publishRecordingSegment(segmentInfo);
+
+      fs.unlinkSync(filePath);
+      logger.info(`Recording segment MinIO'ya yüklendi: ${roomId} ${startSecond}-${endSecond}s`);
+    }
+  }
+
+  async _uploadManifest(recording) {
+    if (!recording.uploadedUrls.length) {
+      return null;
+    }
+    const manifest = {
+      sessionId: recording.roomId,
+      segmentSeconds: config.recording.segmentSeconds,
+      segments: recording.uploadedUrls,
+      createdAt: new Date().toISOString(),
+    };
+    const key = `recordings/${recording.roomId}/manifest.json`;
+    return s3Uploader.uploadBuffer(Buffer.from(JSON.stringify(manifest, null, 2)), key, 'application/json');
+  }
+
+  _padSecond(second) {
+    return String(second).padStart(6, '0');
   }
 
   /**
@@ -269,12 +444,23 @@ class RecordingManager {
   }
 
   /**
-   * Belirtilen room'un recording durumunda olup olmadığını kontrol eder.
+   * Belirtilen room'un AKTİF recording durumunda olup olmadığını kontrol eder.
+   * Pending recording'leri içermez.
    * @param {string} roomId
    * @returns {boolean}
    */
   isRecording(roomId) {
     return this.activeRecordings.has(roomId);
+  }
+
+  /**
+   * Room için bir recording rezervasyonu (aktif veya pending) var mı?
+   * Room kapatma/orphan safety akışında kullanılır.
+   * @param {string} roomId
+   * @returns {boolean}
+   */
+  hasReservation(roomId) {
+    return this.activeRecordings.has(roomId) || this.pendingRecordings.has(roomId);
   }
 }
 
