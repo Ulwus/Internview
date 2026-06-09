@@ -85,6 +85,38 @@ export type Slot = {
   booked: boolean;
 };
 
+export type ShopSummary = {
+  id: string;
+  expertUserId: string;
+  expertFirstName: string;
+  expertLastName: string;
+  expertAvatarUrl?: string | null;
+  industry?: Industry | null;
+  skills?: Skill[];
+  description?: string | null;
+  yearsOfExperience: number;
+  hourlyRate?: number | null;
+  currency?: string | null;
+  isPublished: boolean;
+  averageRating?: number | null;
+  isAvailable?: boolean | null;
+};
+
+export type ExpertStats = {
+  expertUserId: string;
+  averageRating?: number | null;
+  totalRated: number;
+  completedCount: number;
+  cancelledCount: number;
+};
+
+export type ExpertReview = {
+  bookingId: string;
+  rating?: number | null;
+  comment?: string | null;
+  scheduledEnd?: string | null;
+};
+
 export type Booking = {
   id: string;
   candidateId: string;
@@ -106,6 +138,7 @@ export type SessionSummary = {
   expertId: string;
   status: string;
   signalingWebSocketUrl: string;
+  iceServers?: RTCIceServer[];
 };
 
 export type AnalysisReport = {
@@ -119,9 +152,13 @@ export type DashboardData = {
   me: Me;
   profile?: UserProfile;
   experts?: PageResponse<ExpertSummary>;
+  shops?: PageResponse<ShopSummary>;
+  industries?: Industry[];
+  skills?: Skill[];
   bookings?: PageResponse<Booking>;
   availability?: Slot[];
   ownExpertProfile?: ExpertDetail;
+  ownShop?: ShopSummary | null;
 };
 
 const TOKEN_KEY = "internview.access_token";
@@ -185,6 +222,17 @@ export async function apiFetch<T>(
   return body as T;
 }
 
+export async function uploadAvatar(file: File, token: string) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiFetch<{ url: string; key?: string }>("/media/uploads/avatar", {
+    method: "POST",
+    token,
+    body: form,
+  });
+  return response.url;
+}
+
 export async function login(email: string, password: string): Promise<AuthSession> {
   const data = await apiFetch<{
     user_id: string;
@@ -238,23 +286,31 @@ export async function loadDashboard(token: string): Promise<DashboardData> {
   const primaryRole = me.roles.includes("EXPERT") ? "EXPERT" : "CANDIDATE";
 
   const profilePromise = apiFetch<UserProfile>("/users/profile", { token }).catch(() => undefined);
+  const industriesPromise = apiFetch<Industry[]>("/industries").catch(() => []);
+  const skillsPromise = apiFetch<Skill[]>("/skills").catch(() => []);
 
   if (primaryRole === "EXPERT") {
-    const [profile, ownExpertProfile, bookings, availability] = await Promise.all([
+    const [profile, ownExpertProfile, ownShop, bookings, availability, industries, skills] = await Promise.all([
       profilePromise,
       apiFetch<ExpertDetail>("/experts/me", { token }).catch(() => undefined),
+      apiFetch<ShopSummary | null>("/shops/me", { token }).catch(() => null),
       apiFetch<PageResponse<Booking>>("/bookings/me/expert?size=20", { token }),
       apiFetch<Slot[]>("/experts/me/availability", { token }),
+      industriesPromise,
+      skillsPromise,
     ]);
-    return { me, profile, ownExpertProfile, bookings, availability };
+    return { me, profile, ownExpertProfile, ownShop, bookings, availability, industries, skills };
   }
 
-  const [profile, experts, bookings] = await Promise.all([
+  const [profile, experts, shops, bookings, industries, skills] = await Promise.all([
     profilePromise,
     apiFetch<PageResponse<ExpertSummary>>("/experts?is_available=true&size=12"),
+    apiFetch<PageResponse<ShopSummary>>("/shops?published_only=true&is_available=true&size=12").catch(() => undefined),
     apiFetch<PageResponse<Booking>>("/bookings/me/candidate?size=20", { token }),
+    industriesPromise,
+    skillsPromise,
   ]);
-  return { me, profile, experts, bookings };
+  return { me, profile, experts, shops, bookings, industries, skills };
 }
 
 export async function loadLandingData() {
@@ -265,6 +321,63 @@ export async function loadLandingData() {
   return { experts, industries };
 }
 
+export async function searchExperts(params: {
+  search?: string;
+  industry?: string;
+  skill?: string;
+  minRating?: string;
+  isAvailable?: boolean;
+  size?: number;
+}) {
+  const query = new URLSearchParams();
+  query.set("size", String(params.size ?? 20));
+  if (params.search) query.set("search", params.search);
+  if (params.industry) query.set("industry", params.industry);
+  if (params.skill) query.append("skill", params.skill);
+  if (params.minRating) query.set("min_rating", params.minRating);
+  if (params.isAvailable !== undefined) query.set("is_available", String(params.isAvailable));
+  return apiFetch<PageResponse<ExpertSummary>>(`/experts?${query.toString()}`);
+}
+
+export async function listShops(params: {
+  token?: string;
+  industry?: string;
+  skill?: string;
+  minRating?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  isAvailable?: boolean;
+  publishedOnly?: boolean;
+  size?: number;
+}) {
+  const query = new URLSearchParams();
+  query.set("size", String(params.size ?? 20));
+  query.set("published_only", String(params.publishedOnly ?? true));
+  if (params.industry) query.set("industry", params.industry);
+  if (params.skill) query.append("skill", params.skill);
+  if (params.minRating) query.set("min_rating", params.minRating);
+  if (params.minPrice) query.set("min_price", params.minPrice);
+  if (params.maxPrice) query.set("max_price", params.maxPrice);
+  if (params.isAvailable !== undefined) query.set("is_available", String(params.isAvailable));
+  return apiFetch<PageResponse<ShopSummary>>(`/shops?${query.toString()}`, { token: params.token });
+}
+
+export async function getShop(id: string, token: string) {
+  return apiFetch<ShopSummary>(`/shops/${id}`, { token });
+}
+
+export async function getExpertStats(expertUserId: string, token: string) {
+  return apiFetch<ExpertStats>(`/experts/${expertUserId}/stats`, { token });
+}
+
+export async function getExpertReviews(expertUserId: string, token: string) {
+  return apiFetch<PageResponse<ExpertReview>>(`/experts/${expertUserId}/reviews?size=10`, { token });
+}
+
+export function shopExpertName(shop: ShopSummary) {
+  return [shop.expertFirstName, shop.expertLastName].filter(Boolean).join(" ");
+}
+
 export function fullName(value: {
   firstName?: string | null;
   lastName?: string | null;
@@ -272,6 +385,26 @@ export function fullName(value: {
   last_name?: string | null;
 }) {
   return [value.firstName ?? value.first_name, value.lastName ?? value.last_name].filter(Boolean).join(" ");
+}
+
+export function normalizeMediaUrl(raw?: string | null) {
+  if (!raw) return "";
+  const value = raw.trim();
+  if (!value) return "";
+  if (typeof window === "undefined") return value;
+  const origin = window.location.origin;
+  if (value.startsWith(`${origin}/`)) return value;
+  const mediaFilesIndex = value.indexOf("/media/files/");
+  if (mediaFilesIndex >= 0) return `${origin}/api/backend${value.slice(mediaFilesIndex)}`;
+  const avatarsIndex = value.indexOf("/avatars/");
+  if (avatarsIndex >= 0) {
+    const key = value.slice(avatarsIndex + 1);
+    return `${origin}/api/backend/media/files/${encodeURIComponent(key)}`;
+  }
+  if (value.includes("media-service:3000")) {
+    return value.replace(/^https?:\/\/media-service:3000/, `${origin}/api/backend`);
+  }
+  return value;
 }
 
 export function formatDateTime(value?: string | null) {
@@ -285,6 +418,11 @@ export function formatDateTime(value?: string | null) {
 function readError(body: unknown, status: number) {
   if (body && typeof body === "object") {
     const record = body as Record<string, unknown>;
+    const nestedError = record.error;
+    if (nestedError && typeof nestedError === "object") {
+      const nested = nestedError as Record<string, unknown>;
+      return String(nested.message ?? nested.code ?? `İstek başarısız oldu (${status})`);
+    }
     return String(record.message ?? record.error ?? `İstek başarısız oldu (${status})`);
   }
   return typeof body === "string" && body ? body : `İstek başarısız oldu (${status})`;
