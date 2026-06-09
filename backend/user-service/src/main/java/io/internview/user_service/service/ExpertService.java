@@ -2,8 +2,10 @@ package io.internview.user_service.service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,14 +43,16 @@ public class ExpertService {
 
 	@Transactional(readOnly = true)
 	public Page<ExpertSummaryResponse> search(ExpertFilter filter, Pageable pageable) {
-		Specification<ExpertProfile> spec = Specification.allOf(
+		List<Specification<ExpertProfile>> specs = Stream.<Specification<ExpertProfile>>of(
 			ExpertProfileSpecifications.industrySlug(filter.getIndustrySlug()),
 			ExpertProfileSpecifications.hasAnySkillSlug(filter.getSkillSlugs()),
 			ExpertProfileSpecifications.minRating(filter.getMinRating()),
 			ExpertProfileSpecifications.maxHourlyRate(filter.getMaxHourlyRate()),
 			ExpertProfileSpecifications.isAvailable(filter.getIsAvailable()),
 			ExpertProfileSpecifications.search(filter.getSearch())
-		);
+		).filter(Objects::nonNull).toList();
+
+		Specification<ExpertProfile> spec = specs.stream().reduce(Specification::and).orElse(null);
 		return expertProfileRepository.findAll(spec, pageable).map(ExpertProfileMapper::toSummary);
 	}
 
@@ -64,6 +68,28 @@ public class ExpertService {
 		ExpertProfile profile = expertProfileRepository.findByUserId(userId)
 			.orElseThrow(() -> new ExpertProfileNotFoundException("Kullanıcıya ait uzman profili yok: " + userId));
 		return ExpertProfileMapper.toDetail(profile);
+	}
+
+	/**
+	 * EXPERT rolündeki kullanıcılar için profil yoksa otomatik oluşturur.
+	 * Mobil uygulama ilk defa "Uzman profilim" ekranını açtığında 404 yerine çalışır bir profil döndürmek için.
+	 */
+	@Transactional
+	public ExpertDetailResponse getOrCreateByUserId(UUID userId) {
+		ExpertProfile profile = expertProfileRepository.findByUserId(userId).orElse(null);
+		if (profile != null) {
+			return ExpertProfileMapper.toDetail(profile);
+		}
+
+		User user = userRepository.findById(userId)
+			.orElseThrow(() -> new UserNotFoundException("Kullanıcı bulunamadı: " + userId));
+
+		if (user.getRole() != UserRole.EXPERT) {
+			throw new InvalidRoleException("Sadece EXPERT rolündeki kullanıcılar uzman profiline sahip olabilir");
+		}
+
+		ExpertProfile created = createDefaultProfile(user);
+		return ExpertProfileMapper.toDetail(expertProfileRepository.save(created));
 	}
 
 	@Transactional

@@ -43,6 +43,21 @@ public class InterviewSession {
 	@Column(name = "status", nullable = false, length = 32)
 	private String status;
 
+	@Column(name = "expert_joined_at")
+	private Instant expertJoinedAt;
+
+	@Column(name = "recording_started_at")
+	private Instant recordingStartedAt;
+
+	@Column(name = "completed_at")
+	private Instant completedAt;
+
+	@Column(name = "duration_seconds")
+	private Long durationSeconds;
+
+	@Column(name = "recorded_video_url", length = 1024)
+	private String recordedVideoUrl;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 

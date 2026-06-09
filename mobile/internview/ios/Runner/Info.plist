@@ -45,5 +45,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Mülakat için kamera erişimi gereklidir.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mülakat için mikrofon erişimi gereklidir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Profil fotoğrafını seçebilmek için fotoğraf arşivi erişimi gerekir.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Geliştirme sırasında (debug) Flutter’ın Dart VM’e bağlanabilmesi için yerel ağ erişimi gerekir.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dartVmService._tcp</string>
+		<string>_flutterObservatory._tcp</string>
+	</array>
 </dict>
 </plist>

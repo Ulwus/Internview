@@ -35,6 +35,7 @@ class TransportManager {
       preferUdp: true,
       initialAvailableOutgoingBitrate:
         config.mediasoup.webRtcTransport.initialAvailableOutgoingBitrate,
+      appData: { roomId },
     });
 
     // Bant genişliği sınırı
@@ -103,6 +104,7 @@ class TransportManager {
       listenIp: config.mediasoup.plainTransport.listenIp,
       rtcpMux: config.mediasoup.plainTransport.rtcpMux,
       comedia: config.mediasoup.plainTransport.comedia,
+      appData: { roomId },
     });
 
     this.transports.set(transport.id, transport);

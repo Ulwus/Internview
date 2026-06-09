@@ -1,16 +1,35 @@
-# internview
+# Internview (Flutter)
 
-A new Flutter project.
+Backend API Gateway üzerinden çalışan Internview mobil istemcisi.
 
-## Getting Started
+## Çalıştırma
 
-This project is a starting point for a Flutter application.
+API tabanı `--dart-define-from-file` ile **tek bir yerde** tutulur:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cd mobile/internview
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+# Android emülatör (host makinedeki gateway:8080 → 10.0.2.2)
+bash scripts/run_android.sh
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# iOS simülatör (aynı makinede gateway)
+bash scripts/run_ios.sh
+```
+
+Değerler:
+
+- `env/android.json`
+- `env/ios.json`
+
+Varsayılan olmayan URL için `lib/core/config/env.dart` içinde tanımlı sabite bakın.
+
+## Test
+
+```bash
+flutter test
+```
+
+## Notlar
+
+- Ağ güvenliği: Android’de `network_security_config` ile `10.0.2.2` / `localhost` üzerinde cleartext (HTTP) geliştirme trafiğine izin verilir; üretimde HTTPS kullanın.
+- Mülakat odası: kamera ve mikrofon izinleri gerekir (`permission_handler` + manifest/Info.plist).

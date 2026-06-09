@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.internview.user_service.service.UserService;
@@ -29,6 +30,12 @@ public class UserController {
 	public ApiResponse<UserProfileResponse> getProfile(@AuthenticationPrincipal Jwt jwt) {
 		UUID userId = UUID.fromString(jwt.getSubject());
 		return ApiResponse.ok(this.userService.getById(userId));
+	}
+
+	@GetMapping("/{id}")
+	@PreAuthorize("isAuthenticated()")
+	public ApiResponse<UserProfileResponse> getById(@PathVariable UUID id) {
+		return ApiResponse.ok(this.userService.getById(id));
 	}
 
 	@PutMapping("/profile")

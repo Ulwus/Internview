@@ -6,12 +6,62 @@ const mediasoupManager = require('./mediasoup-manager');
 const transportManager = require('./transport-manager');
 const producerConsumerManager = require('./producer-consumer-manager');
 const recordingManager = require('./recording-manager');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+const s3Uploader = require('./s3-uploader');
 
 const router = express.Router();
 
 // ── Helper: async error handler ──────────────────────────
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+});
+
+/**
+ * POST /uploads/avatar
+ * form-data: file
+ * returns: { url, key }
+ */
+router.post(
+  '/uploads/avatar',
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'file gerekli' });
+
+    const contentType = req.file.mimetype || 'application/octet-stream';
+    const ext = contentType === 'image/png' ? 'png' : 'jpg';
+    const key = `avatars/${Date.now()}-${uuidv4()}.${ext}`;
+
+    await s3Uploader.uploadBuffer(req.file.buffer, key, contentType);
+    const url = `${req.protocol}://${req.get('host')}/media/files/${encodeURIComponent(key)}`;
+    res.status(201).json({ url, key });
+  })
+);
+
+/**
+ * GET /files/:key
+ * Not: key path param URL-encoded olmalı (örn: avatars%2F...jpg).
+ */
+router.get(
+  '/files/:key',
+  asyncHandler(async (req, res) => {
+    const key = decodeURIComponent(req.params.key || '');
+    if (!key) return res.status(400).json({ error: 'key gerekli' });
+
+    const obj = await s3Uploader.getObject(key);
+    if (obj.ContentType) res.setHeader('Content-Type', obj.ContentType);
+    if (obj.ContentLength != null) res.setHeader('Content-Length', String(obj.ContentLength));
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    // AWS SDK v3: Body bir stream (Node.js Readable)
+    if (!obj.Body) return res.status(404).json({ error: 'Dosya bulunamadı' });
+    obj.Body.pipe(res);
+  })
+);
 
 // ── Room (Router) Endpoints ──────────────────────────────
 
@@ -54,14 +104,34 @@ router.get(
 
 /**
  * DELETE /rooms/:roomId
- * Room'u kapatır.
+ * Room'u kapatır. Aktif recording varsa önce durdurup MinIO'ya yükler;
+ * yanıt gövdesinde { closed: true, recordedVideoUrl } döndürür.
+ *
+ * Bu, "interview-service /complete'i çağırmadan room kapatıldı"
+ * senaryosunda da kayıt kaybını önler (orphan recording güvenlik ağı).
  */
 router.delete(
   '/rooms/:roomId',
   asyncHandler(async (req, res) => {
     const { roomId } = req.params;
+
+    // Aktif veya pending recording varsa stop et (idempotent; hata atmaz).
+    let recordedVideoUrl = null;
+    if (recordingManager.hasReservation(roomId)) {
+      try {
+        recordedVideoUrl = await recordingManager.stopRecording(roomId);
+        if (recordedVideoUrl) {
+          logger.info(`Room close sırasında recording durduruldu: ${roomId} → ${recordedVideoUrl}`);
+        } else {
+          logger.info(`Room close: pending recording iptal edildi: ${roomId}`);
+        }
+      } catch (err) {
+        logger.warn(`Room close: recording durdurulamadı: ${roomId} → ${err.message}`);
+      }
+    }
+
     mediasoupManager.closeRoom(roomId);
-    res.status(204).send();
+    res.status(200).json({ roomId, closed: true, recordedVideoUrl });
   })
 );
 
@@ -180,14 +250,17 @@ router.post(
 
 /**
  * POST /rooms/:roomId/recording/start
- * Server-side recording başlatır.
+ * Server-side recording başlatır. Producer'lar henüz hazır değilse
+ * pending olarak işaretlenir; producer geldiğinde otomatik başlar.
+ *
+ * Yanıt: { recording: true, roomId, status: 'active'|'pending' }
  */
 router.post(
   '/rooms/:roomId/recording/start',
   asyncHandler(async (req, res) => {
     const { roomId } = req.params;
-    await recordingManager.startRecording(roomId);
-    res.status(201).json({ recording: true, roomId });
+    const result = await recordingManager.startRecording(roomId);
+    res.status(201).json({ recording: true, roomId, status: result.status });
   })
 );
 

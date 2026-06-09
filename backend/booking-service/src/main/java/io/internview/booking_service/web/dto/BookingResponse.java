@@ -35,6 +35,18 @@ public class BookingResponse {
 	@JsonProperty("scheduledEnd")
 	Instant scheduledEnd;
 
+	@JsonProperty("expertRating")
+	Integer expertRating;
+
+	@JsonProperty("expertComment")
+	String expertComment;
+
+	@JsonProperty("candidateRating")
+	Integer candidateRating;
+
+	@JsonProperty("candidateComment")
+	String candidateComment;
+
 	public static BookingResponse from(Booking booking) {
 		return BookingResponse.builder()
 			.id(booking.getId())
@@ -44,6 +56,13 @@ public class BookingResponse {
 			.status(booking.getStatus())
 			.scheduledStart(booking.getScheduledStart())
 			.scheduledEnd(booking.getScheduledEnd())
+			// Geriye dönük uyumluluk: mobilde expertRating/expertComment alanları kullanılıyor.
+			// Artık bunlar "uzman -> aday" geri bildirimi olarak dönüyor.
+			.expertRating(booking.getExpertToCandidateRating() != null ? booking.getExpertToCandidateRating() : booking.getExpertRating())
+			.expertComment(booking.getExpertToCandidateComment() != null ? booking.getExpertToCandidateComment() : booking.getExpertComment())
+			// Yeni alanlar: aday -> uzman
+			.candidateRating(booking.getCandidateToExpertRating())
+			.candidateComment(booking.getCandidateToExpertComment())
 			.build();
 	}
 }

@@ -49,6 +49,17 @@ public final class MediaServiceDtos {
 		private Object rtpCapabilities;
 	}
 
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class CloseRoomResponse {
+		private String roomId;
+		private boolean closed;
+		private String recordedVideoUrl;
+	}
+
 	// ── Transport ─────────────────────────────────────
 
 	@Data

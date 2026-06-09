@@ -49,6 +49,26 @@ public class Booking {
 	@Column(name = "scheduled_end", nullable = false)
 	private Instant scheduledEnd;
 
+	@Column(name = "expert_rating")
+	private Integer expertRating;
+
+	@Column(name = "expert_comment")
+	private String expertComment;
+
+	// Yeni model: uzman -> aday geri bildirimi
+	@Column(name = "expert_to_candidate_rating")
+	private Integer expertToCandidateRating;
+
+	@Column(name = "expert_to_candidate_comment")
+	private String expertToCandidateComment;
+
+	// Yeni model: aday -> uzman(dukkân) değerlendirmesi
+	@Column(name = "candidate_to_expert_rating")
+	private Integer candidateToExpertRating;
+
+	@Column(name = "candidate_to_expert_comment")
+	private String candidateToExpertComment;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 

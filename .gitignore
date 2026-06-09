@@ -30,3 +30,4 @@ infrastructure/postgres/data/
 infrastructure/redis/data/
 infrastructure/kafka/data/
 infrastructure/consul/data/
+/infrastructure/minio/data

@@ -1,5 +1,7 @@
 package io.internview.interview_service.service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -21,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class InterviewSessionService {
+
+	private static final String STATUS_COMPLETED = "COMPLETED";
 
 	private final InterviewSessionRepository repository;
 	private final ApplicationEventPublisher eventPublisher;
@@ -82,8 +86,29 @@ public class InterviewSessionService {
 	public InterviewSession completeByBookingId(UUID bookingId, long durationSeconds, String recordedVideoUrl) {
 		InterviewSession session = this.repository.findByBookingId(bookingId)
 			.orElseThrow(() -> new IllegalArgumentException("Görüşme oturumu bulunamadı: bookingId=" + bookingId));
+		return this.completeInternal(session, durationSeconds, recordedVideoUrl);
+	}
 
-		// Recording aktifse durdur ve S3 URL'sini al
+	/**
+	 * Session ID ile tamamlama (WebSocket FINISH_DONE handshake'inden çağrılır).
+	 * Süre, recording başlangıç zamanına göre türetilir; client'tan gelen değere güvenilmez.
+	 */
+	@Transactional
+	public InterviewSession completeBySessionId(UUID sessionId) {
+		InterviewSession session = this.repository.findById(sessionId)
+			.orElseThrow(() -> new IllegalArgumentException("Görüşme oturumu bulunamadı: sessionId=" + sessionId));
+		long derivedDuration = this.deriveDurationSeconds(session);
+		return this.completeInternal(session, derivedDuration, null);
+	}
+
+	private InterviewSession completeInternal(InterviewSession session, long durationSeconds, String recordedVideoUrl) {
+		// İdempotenttir: zaten COMPLETED ise no-op döner.
+		if (STATUS_COMPLETED.equalsIgnoreCase(session.getStatus())) {
+			log.debug("Session zaten COMPLETED, completion no-op: sessionId={}", session.getId());
+			return session;
+		}
+
+		// Recording aktifse durdur ve S3 URL'sini al (best-effort).
 		String finalVideoUrl = recordedVideoUrl;
 		try {
 			RecordingStopResponse recordingResponse = this.mediaServiceClient
@@ -97,15 +122,27 @@ public class InterviewSessionService {
 			log.warn("Recording durdurma başarısız (muhtemelen aktif değildi): {}", ex.getMessage());
 		}
 
-		// Mediasoup room'u kapat
+		// Mediasoup room'u kapat (best-effort). Orphan recording güvenlik ağı:
+		// closeRoom response'u recordedVideoUrl içeriyorsa onu kullan.
 		try {
-			this.mediaServiceClient.closeRoom(session.getId().toString());
+			String closeUrl = this.mediaServiceClient.closeRoom(session.getId().toString());
+			if (finalVideoUrl == null && closeUrl != null) {
+				finalVideoUrl = closeUrl;
+				log.info("Room close sırasında recording yakalandı: {}", finalVideoUrl);
+			}
 		}
 		catch (Exception ex) {
 			log.warn("Mediasoup room kapatılamadı: {}", ex.getMessage());
 		}
 
-		session.setStatus("COMPLETED");
+		long finalDuration = durationSeconds > 0 ? durationSeconds : this.deriveDurationSeconds(session);
+
+		session.setStatus(STATUS_COMPLETED);
+		session.setCompletedAt(Instant.now());
+		session.setDurationSeconds(finalDuration);
+		if (finalVideoUrl != null) {
+			session.setRecordedVideoUrl(finalVideoUrl);
+		}
 		InterviewSession saved = this.repository.save(session);
 
 		this.eventPublisher.publishEvent(new InterviewCompletedDomainEvent(
@@ -113,10 +150,20 @@ public class InterviewSessionService {
 			saved.getBookingId(),
 			saved.getCandidateId(),
 			saved.getExpertId(),
-			durationSeconds,
+			finalDuration,
 			finalVideoUrl
 		));
 
 		return saved;
+	}
+
+	private long deriveDurationSeconds(InterviewSession session) {
+		Instant start = session.getRecordingStartedAt() != null
+			? session.getRecordingStartedAt()
+			: session.getExpertJoinedAt();
+		if (start == null) {
+			return 0L;
+		}
+		return Math.max(0L, Duration.between(start, Instant.now()).getSeconds());
 	}
 }
