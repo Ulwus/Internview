@@ -244,9 +244,9 @@ services:
       INTERVIEW_EVENTS_TOPIC: interview-events
       ANALYSIS_EVENTS_TOPIC: analysis-events
       ENABLE_KAFKA_CONSUMER: "true"
-      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
       WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-tr}
-      PRELOAD_WHISPER_MODEL: ${PRELOAD_WHISPER_MODEL:-false}
+      PRELOAD_WHISPER_MODEL: ${PRELOAD_WHISPER_MODEL:-true}
       WHISPER_DOWNLOAD_ROOT: /models/whisper
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}
