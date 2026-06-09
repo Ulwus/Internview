@@ -2,6 +2,11 @@
 
 const os = require('os');
 
+const optionalEnv = (name) => {
+  const value = process.env[name];
+  return value && value.trim() ? value.trim() : undefined;
+};
+
 /**
  * Mediasoup SFU yapılandırması.
  *
@@ -72,7 +77,7 @@ const config = {
       listenIps: [
         {
           ip: process.env.MEDIASOUP_LISTEN_IP || '0.0.0.0',
-          announcedIp: process.env.MEDIASOUP_ANNOUNCED_IP || '127.0.0.1',
+          announcedIp: optionalEnv('MEDIASOUP_ANNOUNCED_IP'),
         },
       ],
       maxIncomingBitrate: 1500000,

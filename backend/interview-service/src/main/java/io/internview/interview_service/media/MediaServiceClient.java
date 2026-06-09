@@ -7,6 +7,7 @@ import io.internview.interview_service.media.dto.MediaServiceDtos.CloseRoomRespo
 import io.internview.interview_service.media.dto.MediaServiceDtos.ConnectTransportRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ConsumeRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.ConsumeResponse;
+import io.internview.interview_service.media.dto.MediaServiceDtos.CreateTransportRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.CreateRoomRequest;
 import io.internview.interview_service.media.dto.MediaServiceDtos.CreateRoomResponse;
 import io.internview.interview_service.media.dto.MediaServiceDtos.CreateTransportResponse;
@@ -86,10 +87,11 @@ public class MediaServiceClient {
 	 * @param roomId Room ID
 	 * @return Transport parametreleri (ICE, DTLS bilgileri)
 	 */
-	public CreateTransportResponse createTransport(String roomId) {
+	public CreateTransportResponse createTransport(String roomId, String announcedIp) {
 		log.debug("Media Service: Transport oluşturuluyor (room={})", roomId);
 		return this.mediaServiceRestClient.post()
 			.uri("/rooms/{roomId}/transports", roomId)
+			.body(CreateTransportRequest.builder().announcedIp(announcedIp).build())
 			.retrieve()
 			.body(CreateTransportResponse.class);
 	}

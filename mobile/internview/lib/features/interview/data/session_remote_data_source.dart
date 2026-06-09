@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 
+import '../../../core/config/env.dart';
 import '../../../core/models/session_models.dart';
 import '../../../core/network/dio_client.dart';
 import 'mediasoup_models.dart';
@@ -66,6 +67,7 @@ class SessionRemoteDataSource {
   Future<MediaTransportInfo> createMediaTransport(String sessionId) async {
     final r = await _dio.post<Map<String, dynamic>>(
       '/interviews/sessions/$sessionId/media/transport',
+      data: {'announcedIp': Uri.parse(Env.apiBaseUrl).host},
     );
     final data = r.data;
     if (data == null) throw StateError('Boş transport yanıtı');

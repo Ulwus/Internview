@@ -6,13 +6,15 @@ from fastapi import FastAPI
 from app.config import settings
 from app.database import init_database, ping_database
 from app.kafka_bus import kafka_bus
-from app.pipeline import analyze_interview_completed, analyze_recording_segment, analyze_request
+from app.pipeline import analyze_interview_completed, analyze_recording_segment, analyze_request, whisper_model
 from app.schemas import AnalyzeRequest, AnalyzeResponse
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_database()
+    if settings.preload_whisper_model:
+        whisper_model()
     kafka_bus.start_consumer(handle_kafka_event)
     yield
     kafka_bus.stop()

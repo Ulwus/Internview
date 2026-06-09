@@ -1,3 +1,5 @@
+name: internview
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -147,6 +149,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INTERVIEW_SERVICE_URL: http://interview-service:8083
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
     ports:
       - "8084:8084"
@@ -154,6 +157,7 @@ services:
       - postgres
       - redis
       - kafka
+      - interview-service
     networks:
       - ${DOCKER_NETWORK:-internview-net}
 
@@ -206,7 +210,7 @@ services:
       PORT: ${MEDIA_SERVER_PORT:-3000}
       LOG_LEVEL: ${MEDIA_SERVER_LOG_LEVEL:-info}
       MEDIASOUP_LISTEN_IP: 0.0.0.0
-      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-127.0.0.1}
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-}
       MEDIASOUP_MIN_PORT: ${MEDIASOUP_MIN_PORT:-40000}
       MEDIASOUP_MAX_PORT: ${MEDIASOUP_MAX_PORT:-40099}
       MEDIASOUP_LOG_LEVEL: ${MEDIASOUP_LOG_LEVEL:-warn}
@@ -222,6 +226,7 @@ services:
     ports:
       - "${MEDIA_SERVER_PORT:-3000}:${MEDIA_SERVER_PORT:-3000}"
       - "${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}:${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}/udp"
+      - "${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}:${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}/tcp"
     depends_on:
       - minio
     networks:
@@ -240,6 +245,8 @@ services:
       ANALYSIS_EVENTS_TOPIC: analysis-events
       ENABLE_KAFKA_CONSUMER: "true"
       WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-tr}
+      PRELOAD_WHISPER_MODEL: ${PRELOAD_WHISPER_MODEL:-false}
       WHISPER_DOWNLOAD_ROOT: /models/whisper
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}

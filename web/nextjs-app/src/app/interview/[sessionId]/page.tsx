@@ -81,7 +81,9 @@ export default function InterviewRoomPage() {
   const recvTransportRef = useRef<MediaTransport | null>(null);
   const producedIdsRef = useRef<Set<string>>(new Set());
   const consumedIdsRef = useRef<Set<string>>(new Set());
+  const consumingIdsRef = useRef<Set<string>>(new Set());
   const remoteUserIdRef = useRef("");
+  const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const syncProducers = useCallback(async () => {
     const device = deviceRef.current;
@@ -90,24 +92,35 @@ export default function InterviewRoomPage() {
 
     const response = await apiFetch<{ producers: ProducerSummary[] }>(`/interviews/sessions/${sessionId}/media/producers`, { token });
     for (const producer of response.producers ?? []) {
-      if (producedIdsRef.current.has(producer.id) || consumedIdsRef.current.has(producer.id)) continue;
-      const consumeInfo = await apiFetch<ConsumeInfo>(`/interviews/sessions/${sessionId}/media/transport/${recvTransport.id}/consume`, {
-        method: "POST",
-        token,
-        body: JSON.stringify({
-          producerId: producer.id,
-          rtpCapabilities: device.rtpCapabilities,
-        }),
-      });
-      const consumer = await recvTransport.consume({
-        id: consumeInfo.id,
-        producerId: consumeInfo.producerId,
-        kind: consumeInfo.kind,
-        rtpParameters: consumeInfo.rtpParameters,
-      });
-      consumedIdsRef.current.add(producer.id);
-      await apiFetch(`/interviews/sessions/${sessionId}/media/consumer/${consumer.id}/resume`, { method: "POST", token });
-      setRemoteTracks((current) => [...current, { id: consumer.id, kind: consumeInfo.kind, stream: new MediaStream([consumer.track]) }]);
+      if (
+        producedIdsRef.current.has(producer.id) ||
+        consumedIdsRef.current.has(producer.id) ||
+        consumingIdsRef.current.has(producer.id)
+      ) {
+        continue;
+      }
+      consumingIdsRef.current.add(producer.id);
+      try {
+        const consumeInfo = await apiFetch<ConsumeInfo>(`/interviews/sessions/${sessionId}/media/transport/${recvTransport.id}/consume`, {
+          method: "POST",
+          token,
+          body: JSON.stringify({
+            producerId: producer.id,
+            rtpCapabilities: device.rtpCapabilities,
+          }),
+        });
+        const consumer = await recvTransport.consume({
+          id: consumeInfo.id,
+          producerId: consumeInfo.producerId,
+          kind: consumeInfo.kind,
+          rtpParameters: consumeInfo.rtpParameters,
+        });
+        consumedIdsRef.current.add(producer.id);
+        await apiFetch(`/interviews/sessions/${sessionId}/media/consumer/${consumer.id}/resume`, { method: "POST", token });
+        setRemoteTracks((current) => [...current, { id: consumer.id, kind: consumeInfo.kind, stream: new MediaStream([consumer.track]) }]);
+      } finally {
+        consumingIdsRef.current.delete(producer.id);
+      }
     }
   }, [sessionId, token]);
 
@@ -141,14 +154,14 @@ export default function InterviewRoomPage() {
             return;
           }
           wsRef.current?.send(JSON.stringify({ type: "FINISH_DONE", targetUserId }));
-          router.push("/dashboard");
+          router.push(bookingId ? `/interview-result/${bookingId}` : "/dashboard");
         }
         if (payload.type === "FINISH_REJECT" && role === "EXPERT") {
           setFinishRequested(false);
           setMessage("Aday bitirme isteğini reddetti.");
         }
         if (payload.type === "FINISH_DONE" && role !== "EXPERT") {
-          router.push("/dashboard");
+          router.push(bookingId ? `/interview-result/${bookingId}` : "/dashboard");
         }
         if (payload.type === "ERROR") setMessage(payload.message ?? "Signaling hatası");
       } catch {
@@ -156,7 +169,7 @@ export default function InterviewRoomPage() {
       }
     };
     socket.onerror = () => setMessage("Signaling bağlantısı hata verdi");
-  }, [role, router, syncProducers]);
+  }, [bookingId, role, router, syncProducers]);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -224,6 +237,11 @@ export default function InterviewRoomPage() {
         setJoined(true);
         setStatus("Mülakattasın");
         await syncProducers();
+        syncTimerRef.current = setInterval(() => {
+          syncProducers().catch((err) => {
+            setMessage(err instanceof Error ? err.message : "Akış yenilenemedi");
+          });
+        }, 1500);
       } catch (err) {
         setStatus("Bağlantı hatası");
         setMessage(err instanceof Error ? err.message : "Mülakat odasına girilemedi");
@@ -236,6 +254,10 @@ export default function InterviewRoomPage() {
       cancelled = true;
       wsRef.current?.send(JSON.stringify({ type: "LEAVE_ROOM" }));
       wsRef.current?.close();
+      if (syncTimerRef.current) {
+        clearInterval(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
       sendTransportRef.current?.close?.();
       recvTransportRef.current?.close?.();
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -366,7 +388,11 @@ export default function InterviewRoomPage() {
 }
 
 async function createTransport(sessionId: string, token: string) {
-  return apiFetch<TransportInfo>(`/interviews/sessions/${sessionId}/media/transport`, { method: "POST", token });
+  return apiFetch<TransportInfo>(`/interviews/sessions/${sessionId}/media/transport`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ announcedIp: window.location.hostname }),
+  });
 }
 
 function wireSendTransport(transport: MediaTransport, sessionId: string, token: string) {

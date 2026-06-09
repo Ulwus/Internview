@@ -145,7 +145,8 @@ router.post(
   '/rooms/:roomId/transports',
   asyncHandler(async (req, res) => {
     const { roomId } = req.params;
-    const transportInfo = await transportManager.createWebRtcTransport(roomId);
+    const { announcedIp } = req.body || {};
+    const transportInfo = await transportManager.createWebRtcTransport(roomId, announcedIp);
     res.status(201).json(transportInfo);
   })
 );
