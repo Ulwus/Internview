@@ -13,6 +13,8 @@ from sqlalchemy.types import DateTime
 from sqlalchemy.sql import func
 
 from app.config import settings
+from app.llm_evaluator import evaluate_interview
+from app.metrics import calculate_overall_score
 
 
 engine = create_engine(settings.database_url, pool_pre_ping=True)
@@ -192,6 +194,12 @@ def rebuild_session_analysis_from_segments(session_id: UUID) -> None:
             "filler_word_ratio": round(filler_total / total_words, 4) if total_words else 0,
             "segment_count": len(rows),
         }
+        aggregate["overall_score"] = calculate_overall_score(
+            aggregate["wpm"],
+            aggregate["pause_ratio"],
+            aggregate["filler_word_ratio"],
+        )
+        aggregate["ai_evaluation"] = evaluate_interview(timed_transcript, aggregate)
 
         save_analysis(session_id, timed_transcript, aggregate)
 

@@ -9,6 +9,7 @@ import whisper
 from app.config import settings
 from app.database import rebuild_session_analysis_from_segments, save_analysis, save_segment_analysis
 from app.kafka_bus import kafka_bus
+from app.llm_evaluator import evaluate_interview
 from app.metrics import calculate_speech_metrics
 from app.schemas import AnalyzeRequest, AnalyzeResponse, InterviewCompletedPayload, RecordingSegmentPayload
 from app.storage import cleanup_files, download_recording, extract_audio
@@ -61,6 +62,7 @@ def analyze_request(request: AnalyzeRequest) -> AnalyzeResponse:
         result = transcribe_audio(str(audio_path))
         transcript, segments = clean_transcription(result)
         analysis = calculate_speech_metrics(transcript, segments, request.duration_seconds)
+        analysis["ai_evaluation"] = evaluate_interview(transcript, analysis)
         save_analysis(request.session_id, transcript, analysis)
         kafka_bus.publish_analysis_completed(str(request.session_id), str(request.candidate_id) if request.candidate_id else None, analysis)
         return AnalyzeResponse(session_id=request.session_id, transcript=transcript, analysis=analysis)

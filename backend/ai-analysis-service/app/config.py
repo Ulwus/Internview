@@ -26,6 +26,10 @@ class Settings:
     s3_access_key: str | None = os.getenv("S3_ACCESS_KEY")
     s3_secret_key: str | None = os.getenv("S3_SECRET_KEY")
     s3_force_path_style: bool = os.getenv("S3_FORCE_PATH_STYLE", "false").lower() == "true"
+    groq_api_key: str | None = os.getenv("GROQ_API_KEY")
+    groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    enable_llm_evaluation: bool = os.getenv("ENABLE_LLM_EVALUATION", "true").lower() == "true"
 
 
 settings = Settings()
