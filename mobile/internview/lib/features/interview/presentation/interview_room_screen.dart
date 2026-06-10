@@ -164,6 +164,13 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     return false;
   }
 
+  String _formatRemainingMinutes(int? seconds) {
+    final value = seconds ?? 0;
+    if (value <= 0) return '0 dk';
+    if (value < 60) return '<1 dk';
+    return '${(value / 60).ceil()} dk';
+  }
+
   Future<void> _init() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
@@ -731,7 +738,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
                           valueListenable: _remainingSeconds,
                           builder: (context, seconds, _) {
                             return Text(
-                              'Kalan Süre: ${seconds ?? 0}s',
+                              'Kalan Süre: ${_formatRemainingMinutes(seconds)}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 16,

@@ -101,25 +101,30 @@ class _NavItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: isSelected ? 48 : 40,
-        height: isSelected ? 48 : 40,
+        width: 58,
+        height: 50,
         decoration: BoxDecoration(
           color: isSelected ? selectedColor : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           border: isSelected ? Border.all(color: Colors.black, width: 3) : null,
           boxShadow: isSelected
               ? const [
-                  BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(2, 2)),
+                  BoxShadow(
+                    color: Colors.black,
+                    blurRadius: 0,
+                    offset: Offset(2, 2),
+                  ),
                 ]
               : null,
         ),
         child: Icon(
           icon,
-          color: isSelected ? Colors.black : Colors.black.withValues(alpha: 0.65),
-          size: 24,
+          color: isSelected
+              ? Colors.black
+              : Colors.black.withValues(alpha: 0.65),
+          size: 26,
         ),
       ),
     );
   }
 }
-
