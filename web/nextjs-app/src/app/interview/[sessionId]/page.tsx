@@ -72,6 +72,9 @@ export default function InterviewRoomPage() {
   const [joined, setJoined] = useState(false);
   const [finishRequested, setFinishRequested] = useState(false);
   const [incomingFinishFrom, setIncomingFinishFrom] = useState("");
+  const [scheduledEndMs, setScheduledEndMs] = useState<number | null>(null);
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -79,16 +82,27 @@ export default function InterviewRoomPage() {
   const deviceRef = useRef<Device | null>(null);
   const sendTransportRef = useRef<MediaTransport | null>(null);
   const recvTransportRef = useRef<MediaTransport | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenProducerRef = useRef<{ id: string; close?: () => void } | null>(null);
   const producedIdsRef = useRef<Set<string>>(new Set());
   const consumedIdsRef = useRef<Set<string>>(new Set());
   const consumingIdsRef = useRef<Set<string>>(new Set());
   const remoteUserIdRef = useRef("");
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const roomClosedRef = useRef(false);
+
+  function stopProducerSync() {
+    roomClosedRef.current = true;
+    if (syncTimerRef.current) {
+      clearInterval(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+  }
 
   const syncProducers = useCallback(async () => {
     const device = deviceRef.current;
     const recvTransport = recvTransportRef.current;
-    if (!device || !recvTransport?.consume || !token) return;
+    if (roomClosedRef.current || !device || !recvTransport?.consume || !token) return;
 
     const response = await apiFetch<{ producers: ProducerSummary[] }>(`/interviews/sessions/${sessionId}/media/producers`, { token });
     for (const producer of response.producers ?? []) {
@@ -153,6 +167,7 @@ export default function InterviewRoomPage() {
             setMessage("Karşı taraf bulunamadı, mülakat bitirilemedi.");
             return;
           }
+          stopProducerSync();
           wsRef.current?.send(JSON.stringify({ type: "FINISH_DONE", targetUserId }));
           router.push(bookingId ? `/interview-result/${bookingId}` : "/dashboard");
         }
@@ -161,6 +176,7 @@ export default function InterviewRoomPage() {
           setMessage("Aday bitirme isteğini reddetti.");
         }
         if (payload.type === "FINISH_DONE" && role !== "EXPERT") {
+          stopProducerSync();
           router.push(bookingId ? `/interview-result/${bookingId}` : "/dashboard");
         }
         if (payload.type === "ERROR") setMessage(payload.message ?? "Signaling hatası");
@@ -190,6 +206,8 @@ export default function InterviewRoomPage() {
           const now = Date.now();
           const start = new Date(booking.scheduledStart).getTime();
           const end = new Date(booking.scheduledEnd).getTime();
+          setScheduledEndMs(end);
+          setRemainingMs(Math.max(0, end - now));
           if (booking.status !== "CONFIRMED") {
             setStatus("Oturum kapalı");
             setMessage("Mülakat sadece onaylı randevuda açılır.");
@@ -239,6 +257,11 @@ export default function InterviewRoomPage() {
         await syncProducers();
         syncTimerRef.current = setInterval(() => {
           syncProducers().catch((err) => {
+            const message = err instanceof Error ? err.message : "";
+            if (message.includes("Room bulunamadı") || message.includes("404")) {
+              stopProducerSync();
+              return;
+            }
             setMessage(err instanceof Error ? err.message : "Akış yenilenemedi");
           });
         }, 1500);
@@ -252,17 +275,24 @@ export default function InterviewRoomPage() {
 
     return () => {
       cancelled = true;
+      stopProducerSync();
       wsRef.current?.send(JSON.stringify({ type: "LEAVE_ROOM" }));
       wsRef.current?.close();
-      if (syncTimerRef.current) {
-        clearInterval(syncTimerRef.current);
-        syncTimerRef.current = null;
-      }
       sendTransportRef.current?.close?.();
       recvTransportRef.current?.close?.();
+      screenProducerRef.current?.close?.();
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, [bookingId, openSignalingSocket, sessionId, syncProducers, token]);
+
+  useEffect(() => {
+    if (!scheduledEndMs) return;
+    const tick = () => setRemainingMs(Math.max(0, scheduledEndMs - Date.now()));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [scheduledEndMs]);
 
   function toggleMic() {
     const next = !micEnabled;
@@ -278,6 +308,45 @@ export default function InterviewRoomPage() {
       track.enabled = next;
     });
     setCameraEnabled(next);
+  }
+
+  async function toggleScreenShare() {
+    setMessage("");
+    const sendTransport = sendTransportRef.current;
+    if (!sendTransport?.produce) {
+      setMessage("Ekran paylaşımı için medya bağlantısı hazır değil.");
+      return;
+    }
+    if (isScreenSharing) {
+      screenProducerRef.current?.close?.();
+      screenProducerRef.current = null;
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+      setIsScreenSharing(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
+        stream.getTracks().forEach((item) => item.stop());
+        return;
+      }
+      const producer = await sendTransport.produce({ track });
+      producedIdsRef.current.add(producer.id);
+      screenStreamRef.current = stream;
+      screenProducerRef.current = producer;
+      track.onended = () => {
+        screenProducerRef.current?.close?.();
+        screenProducerRef.current = null;
+        screenStreamRef.current = null;
+        setIsScreenSharing(false);
+      };
+      setIsScreenSharing(true);
+      await syncProducers();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Ekran paylaşımı başlatılamadı");
+    }
   }
 
   async function finishInterview() {
@@ -324,6 +393,13 @@ export default function InterviewRoomPage() {
     router.push("/");
   }
 
+  function remainingLabel() {
+    if (remainingMs == null) return "Süre bekleniyor";
+    if (remainingMs <= 0) return "Kalan Süre: 0 dk";
+    if (remainingMs < 60000) return "Kalan Süre: <1 dk";
+    return `Kalan Süre: ${Math.ceil(remainingMs / 60000)} dk`;
+  }
+
   return (
     <main className="interview-shell">
       <header className="top-bar interview-top">
@@ -335,6 +411,7 @@ export default function InterviewRoomPage() {
           </div>
         </Link>
         <AnimatedTabBar tabs={[joined ? "Bağlı" : "Hazır", role || "Katılımcı", status]} />
+        <StatusChip tone="orange">{remainingLabel()}</StatusChip>
         <button className="icon-button" onClick={logout} aria-label="Çıkış">×</button>
       </header>
 
@@ -377,6 +454,7 @@ export default function InterviewRoomPage() {
         <div className="control-row">
           <AnimatedActionButton color={micEnabled ? "cyan" : "red"} onClick={toggleMic}>{micEnabled ? "Mikrofon açık" : "Mikrofon kapalı"}</AnimatedActionButton>
           <AnimatedActionButton color={cameraEnabled ? "yellow" : "red"} onClick={toggleCamera}>{cameraEnabled ? "Kamera açık" : "Kamera kapalı"}</AnimatedActionButton>
+          <AnimatedActionButton color={isScreenSharing ? "cyan" : "white"} onClick={toggleScreenShare}>{isScreenSharing ? "Ekran açık" : "Ekran paylaş"}</AnimatedActionButton>
           <AnimatedActionButton color="orange" onClick={syncProducers}>Akışı yenile</AnimatedActionButton>
           <AnimatedActionButton color={finishRequested ? "white" : "red"} disabled={finishRequested} onClick={finishInterview}>
             {finishRequested ? "Onay bekleniyor" : "Mülakatı bitir"}

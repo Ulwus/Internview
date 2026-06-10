@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppPageState, AppShell, useAppSession } from "@/components/app-shell";
-import { AnimatedActionButton, SectionCard, StatusChip } from "@/components/penkrowd";
+import { AnimatedActionButton, RadialStatGauge, SectionCard, StatusChip } from "@/components/penkrowd";
 import { AnalysisReport, Booking, apiFetch, formatDateTime } from "@/lib/api";
 
 export default function InterviewResultPage() {
@@ -112,10 +112,7 @@ function ResultContent({ bookingId, role, token }: { bookingId: string; role: "C
 
       <SectionCard title="AI Yorumu" subtitle={report ? "Konuşma analizi" : "Rapor bekleniyor"} accent="purple">
         {report ? (
-          <div className="ai-report-box">
-            <p>{report.transcript || "Transkript boş."}</p>
-            <pre>{JSON.stringify(report.analysis, null, 2)}</pre>
-          </div>
+          <AiReview report={report} />
         ) : (
           <p className="muted-copy">AI analizi henüz hazır değil.</p>
         )}
@@ -124,6 +121,40 @@ function ResultContent({ bookingId, role, token }: { bookingId: string; role: "C
       <AnimatedActionButton color="yellow" onClick={() => router.push("/bookings")}>Kapat</AnimatedActionButton>
     </section>
   );
+}
+
+function AiReview({ report }: { report: AnalysisReport }) {
+  const evaluation = report.analysis.aiEvaluation;
+  if (!evaluation) {
+    return <p className="muted-copy">AI değerlendirmesi henüz oluşmadı.</p>;
+  }
+  return (
+    <div className="ai-review-panel">
+      <div className="ai-score-row">
+        <RadialStatGauge value={evaluation.score ?? null} max={10} label="AI Puan" accent="purple" />
+        <div>
+          <strong>{evaluation.score == null ? "-/10" : `${formatScore(evaluation.score)}/10`}</strong>
+          <p>{evaluation.reason || "AI değerlendirmesi oluşturuldu."}</p>
+        </div>
+      </div>
+      {evaluation.strengths?.length ? (
+        <div className="ai-list-block">
+          <strong>Güçlü yanlar</strong>
+          {evaluation.strengths.map((item) => <p key={item}>{item}</p>)}
+        </div>
+      ) : null}
+      {evaluation.improvements?.length ? (
+        <div className="ai-list-block">
+          <strong>Gelişim önerileri</strong>
+          {evaluation.improvements.map((item) => <p key={item}>{item}</p>)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatScore(value: number) {
+  return value >= 10 ? value.toFixed(0) : value.toFixed(1);
 }
 
 function ReadOnlyReview({ rating, comment, empty }: { rating?: number | null; comment?: string | null; empty: string }) {

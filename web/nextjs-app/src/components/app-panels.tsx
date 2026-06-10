@@ -104,7 +104,7 @@ export function OverviewPanel({ session }: Reloadable) {
           ) : (
             <div className="mini-stack">
               <strong>{data?.shops?.totalElements ?? 0} pazar ilanı</strong>
-              <p className="muted-copy">Uzmanlar veya Pazar sayfasından saat seçip randevu isteği gönderebilirsin.</p>
+              <p className="muted-copy">Pazar sayfasından saat seçip randevu isteği gönderebilirsin.</p>
             </div>
           )}
         </SectionCard>
@@ -391,13 +391,27 @@ function CandidateMarketplacePanel({ session }: Reloadable) {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [industry, setIndustry] = useState("");
   const [skill, setSkill] = useState("");
+  const [minRating, setMinRating] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [availability, setAvailability] = useState("");
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
     setMessage("");
     try {
       const [page, nextIndustries, nextSkills] = await Promise.all([
-        listShops({ token: session.token, industry, skill, isAvailable: true, publishedOnly: true, size: 30 }),
+        listShops({
+          token: session.token,
+          industry,
+          skill,
+          minRating,
+          minPrice,
+          maxPrice,
+          isAvailable: availability === "" ? undefined : availability === "true",
+          publishedOnly: true,
+          size: 30,
+        }),
         apiFetch<Industry[]>("/industries").catch(() => []),
         apiFetch<Skill[]>("/skills").catch(() => []),
       ]);
@@ -408,7 +422,7 @@ function CandidateMarketplacePanel({ session }: Reloadable) {
       setShops([]);
       setMessage(err instanceof Error ? err.message : "Pazar verisi alınamadı");
     }
-  }, [industry, session.token, skill]);
+  }, [availability, industry, maxPrice, minPrice, minRating, session.token, skill]);
 
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -424,6 +438,19 @@ function CandidateMarketplacePanel({ session }: Reloadable) {
         <select value={skill} onChange={(event) => setSkill(event.target.value)}>
           <option value="">Tüm yetenekler</option>
           {skills.map((item) => <option value={item.slug} key={item.id}>{item.name}</option>)}
+        </select>
+        <select value={minRating} onChange={(event) => setMinRating(event.target.value)}>
+          <option value="">Tüm puanlar</option>
+          <option value="8">8+ puan</option>
+          <option value="6">6+ puan</option>
+          <option value="4">4+ puan</option>
+        </select>
+        <input placeholder="Min fiyat" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} type="number" min="0" />
+        <input placeholder="Max fiyat" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} type="number" min="0" />
+        <select value={availability} onChange={(event) => setAvailability(event.target.value)}>
+          <option value="">Tüm müsaitlik</option>
+          <option value="true">Müsait</option>
+          <option value="false">Müsait değil</option>
         </select>
         <AnimatedActionButton color="yellow">Filtrele</AnimatedActionButton>
       </form>
@@ -581,7 +608,11 @@ function ShopBookingCard({ shop }: { shop: ShopSummary }) {
         <RadialStatGauge value={shop.averageRating} max={10} label="Puan" accent="purple" />
       </div>
       <p className="muted-copy">{shop.description || "Açıklama bekleniyor."}</p>
-      <div className="tag-cloud">{shop.skills?.map((item) => <StatusChip tone="white" key={item.id}>{item.name}</StatusChip>)}</div>
+      <div className="shop-meta-row">
+        <StatusChip tone={shop.isAvailable ? "cyan" : "yellow"}>{shop.isAvailable ? "Müsait" : "Kısıtlı"}</StatusChip>
+        {shop.hourlyRate != null ? <StatusChip tone="white">{shop.hourlyRate} {shop.currency ?? ""}</StatusChip> : null}
+      </div>
+      <div className="tag-cloud">{shop.skills?.slice(0, 4).map((item) => <StatusChip tone="white" key={item.id}>{item.name}</StatusChip>)}</div>
       <AnimatedActionButton color="black" fullWidth href={`/shop/${shop.id}`}>Dükkanı aç</AnimatedActionButton>
     </PenkrowdCard>
   );
@@ -589,14 +620,23 @@ function ShopBookingCard({ shop }: { shop: ShopSummary }) {
 
 function SlotPicker({ expertId, slots, token }: { expertId: string; slots: Slot[]; token: string }) {
   const [message, setMessage] = useState("");
+  const [selectedDay, setSelectedDay] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState("");
 
-  async function createBooking(slotId: string) {
+  const slotsByDay = groupSlotsByDay(slots.filter((slot) => !slot.booked));
+  const daySlots = selectedDay ? slotsByDay.find(([day]) => day === selectedDay)?.[1] ?? [] : [];
+
+  async function createBooking() {
     setMessage("");
+    if (!selectedSlot) {
+      setMessage("Önce gün ve saat seç.");
+      return;
+    }
     try {
       await apiFetch<Booking>("/bookings", {
         method: "POST",
         token,
-        body: JSON.stringify({ expertId, slotId }),
+        body: JSON.stringify({ expertId, slotId: selectedSlot }),
       });
       setMessage("Randevu isteği gönderildi.");
     } catch (err) {
@@ -605,15 +645,55 @@ function SlotPicker({ expertId, slots, token }: { expertId: string; slots: Slot[
   }
 
   return (
-    <div className="file-list">
-      {slots.map((slot) => (
-        <button className="slot-button" onClick={() => createBooking(slot.id)} key={slot.id}>
-          {formatDateTime(slot.startTime)} - {formatDateTime(slot.endTime)}
-        </button>
-      ))}
+    <div className="slot-picker-panel">
+      <div className="slot-step-title"><span>1</span><strong>Gün seç</strong><em>{slotsByDay.reduce((sum, [, items]) => sum + items.length, 0)} seans</em></div>
+      <div className="day-grid">
+        {slotsByDay.map(([day, dayItems]) => (
+          <button className={selectedDay === day ? "day-cell is-selected" : "day-cell"} onClick={() => { setSelectedDay(day); setSelectedSlot(""); }} key={day}>
+            <strong>{new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(new Date(day))}</strong>
+            <span>{dayItems.length} seans</span>
+          </button>
+        ))}
+        {slotsByDay.length === 0 ? <p className="muted-copy">Uygun slot yok.</p> : null}
+      </div>
+      <div className="slot-step-title"><span>2</span><strong>Saat seç</strong></div>
+      {daySlots.length > 0 ? (
+        <div className="time-grid">
+          {daySlots.map((slot) => (
+            <button className={selectedSlot === slot.id ? "time-cell is-selected" : "time-cell"} onClick={() => setSelectedSlot(slot.id)} key={slot.id}>
+              {formatTimeRange(slot)}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="muted-copy">Müsait günlerden birini seç.</p>
+      )}
       {message ? <p className={message.includes("gönderildi") ? "muted-copy" : "form-error"}>{message}</p> : null}
+      <AnimatedActionButton color="cyan" disabled={!selectedSlot} fullWidth onClick={createBooking}>Randevu isteği gönder</AnimatedActionButton>
     </div>
   );
+}
+
+function groupSlotsByDay(slots: Slot[]) {
+  const grouped = new Map<string, Slot[]>();
+  for (const slot of slots) {
+    const day = localDayKey(slot.startTime);
+    grouped.set(day, [...(grouped.get(day) ?? []), slot].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+  }
+  return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+function localDayKey(value: string) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeRange(slot: Slot) {
+  const formatter = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return `${formatter.format(new Date(slot.startTime))} - ${formatter.format(new Date(slot.endTime))}`;
 }
 
 function BookingRow({ booking, role, token, reload }: { booking: Booking; role: "CANDIDATE" | "EXPERT"; token: string; reload?: () => Promise<void> }) {
@@ -631,6 +711,15 @@ function BookingRow({ booking, role, token, reload }: { booking: Booking; role: 
     await reload?.();
   }
 
+  async function patchStatus(status: "CANCELLED" | "COMPLETED") {
+    await apiFetch<Booking>(`/bookings/${booking.id}/status`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ status }),
+    });
+    await reload?.();
+  }
+
   async function enter() {
     const session = await apiFetch<{ sessionId: string }>(`/interviews/sessions/booking/${booking.id}`, { token });
     router.push(`/interview/${session.sessionId}?bookingId=${booking.id}&role=${role}`);
@@ -642,6 +731,11 @@ function BookingRow({ booking, role, token, reload }: { booking: Booking; role: 
       <div>
         <strong>{formatDateTime(booking.scheduledStart)}</strong>
         <p>{formatDateTime(booking.scheduledEnd)}</p>
+        {booking.status === "CONFIRMED" && canJoin ? (
+          <span className="join-hint is-open">
+            Oda açık
+          </span>
+        ) : null}
       </div>
       <div className="row-actions">
         {role === "EXPERT" && booking.status === "PENDING" ? (
@@ -651,6 +745,15 @@ function BookingRow({ booking, role, token, reload }: { booking: Booking; role: 
           </>
         ) : null}
         {canJoin ? <button className="tone-chip" onClick={() => void enter()}>Mülakata gir</button> : null}
+        {role === "CANDIDATE" && booking.status === "PENDING" ? (
+          <button className="tone-chip danger" onClick={() => void patchStatus("CANCELLED")}>Talebi iptal et</button>
+        ) : null}
+        {booking.status === "CONFIRMED" ? (
+          <button className="tone-chip danger" onClick={() => void patchStatus("CANCELLED")}>İptal et</button>
+        ) : null}
+        {role === "EXPERT" && booking.status === "CONFIRMED" ? (
+          <button className="tone-chip" onClick={() => void patchStatus("COMPLETED")}>Tamamlandı</button>
+        ) : null}
         {booking.status === "COMPLETED" ? <AnimatedActionButton color="white" href={`/interview-result/${booking.id}`}>Sonucu gör</AnimatedActionButton> : null}
       </div>
     </article>

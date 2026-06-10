@@ -20,6 +20,8 @@ import {
   shopExpertName,
 } from "@/lib/api";
 
+const REVIEWS_PER_PAGE = 4;
+
 export default function ShopDetailPage() {
   const state = useAppSession();
   const params = useParams<{ id: string }>();
@@ -42,6 +44,7 @@ function ShopDetailContent({ shopId, token }: { shopId: string; token: string })
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
+  const [reviewPage, setReviewPage] = useState(0);
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
@@ -64,6 +67,7 @@ function ShopDetailContent({ shopId, token }: { shopId: string; token: string })
       ]);
       setStats(nextStats);
       setReviews(nextReviews.items);
+      setReviewPage(0);
       setSlots(nextSlots.filter((slot) => !slot.booked));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Dükkan alınamadı");
@@ -77,13 +81,15 @@ function ShopDetailContent({ shopId, token }: { shopId: string; token: string })
   const slotsByDay = useMemo(() => {
     const grouped = new Map<string, Slot[]>();
     for (const slot of slots) {
-      const day = new Date(slot.startTime).toISOString().slice(0, 10);
+      const day = localDayKey(slot.startTime);
       grouped.set(day, [...(grouped.get(day) ?? []), slot]);
     }
     return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [slots]);
 
   const daySlots = selectedDay ? slotsByDay.find(([day]) => day === selectedDay)?.[1] ?? [] : [];
+  const totalReviewPages = Math.max(1, Math.ceil(reviews.length / REVIEWS_PER_PAGE));
+  const visibleReviews = reviews.slice(reviewPage * REVIEWS_PER_PAGE, reviewPage * REVIEWS_PER_PAGE + REVIEWS_PER_PAGE);
 
   async function createBooking() {
     if (!shop || !selectedSlot) {
@@ -128,40 +134,56 @@ function ShopDetailContent({ shopId, token }: { shopId: string; token: string })
             <MiniStat label="İptal" value={stats?.cancelledCount ?? 0} />
             <MiniStat label="İncelemeler" value={stats?.totalRated ?? 0} />
           </div>
-          <SectionCard title="Yorumlar" subtitle="Aday değerlendirmeleri">
-            <div className="segment-list">
-              {reviews.map((review) => (
-                <PenkrowdCard accent="purple" className="review-card" key={review.bookingId}>
-                  <strong>{review.rating == null ? "Değerlendirme" : `Puan: ${review.rating}/10`}</strong>
-                  <p className="muted-copy">{review.comment || "Yorum yok"}</p>
-                  <AnimatedActionButton color="white" href={`/interview-result/${review.bookingId}`}>Sonucu aç</AnimatedActionButton>
+          <SectionCard
+            title="Yorumlar"
+            subtitle="Aday değerlendirmeleri"
+            action={reviews.length > 0 ? <StatusChip>{reviews.length}</StatusChip> : undefined}
+          >
+            <div className="review-grid">
+              {visibleReviews.map((review) => (
+                <PenkrowdCard accent="purple" className="review-card marketplace-review-card" key={review.bookingId}>
+                  <div className="review-card-head">
+                    <span>Senin yorumun</span>
+                    <strong>{review.rating == null ? "Puan yok" : `${review.rating}/10`}</strong>
+                  </div>
+                  <p>{review.comment || "Yorum yazılmamış."}</p>
+                  {review.scheduledEnd ? <small>{formatDateTime(review.scheduledEnd)}</small> : null}
                 </PenkrowdCard>
               ))}
               {reviews.length === 0 ? <p className="muted-copy">Henüz yorum yok.</p> : null}
             </div>
+            {reviews.length > REVIEWS_PER_PAGE ? (
+              <div className="pagination-bar" aria-label="Yorum sayfaları">
+                <button disabled={reviewPage === 0} onClick={() => setReviewPage((page) => Math.max(0, page - 1))}>Önceki</button>
+                <span>{reviewPage + 1} / {totalReviewPages}</span>
+                <button disabled={reviewPage >= totalReviewPages - 1} onClick={() => setReviewPage((page) => Math.min(totalReviewPages - 1, page + 1))}>Sonraki</button>
+              </div>
+            ) : null}
           </SectionCard>
         </section>
 
         <SectionCard title="Müsaitlik" subtitle="Gün ve saat seç">
-          <div className="calendar-card">
+          <div className="calendar-card slot-picker-panel">
+            <div className="slot-step-title"><span>1</span><strong>Gün seç</strong><em>{slots.length} seans</em></div>
             <div className="day-grid">
               {slotsByDay.map(([day, dayItems]) => (
                 <button className={selectedDay === day ? "day-cell is-selected" : "day-cell"} onClick={() => { setSelectedDay(day); setSelectedSlot(""); }} key={day}>
                   <strong>{new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(new Date(day))}</strong>
-                  <span>{dayItems.length} saat</span>
+                  <span>{dayItems.length} seans</span>
                 </button>
               ))}
               {slotsByDay.length === 0 ? <p className="muted-copy">Uygun slot yok.</p> : null}
             </div>
+            <div className="slot-step-title"><span>2</span><strong>Saat seç</strong></div>
             {daySlots.length > 0 ? (
               <div className="time-grid">
                 {daySlots.map((slot) => (
                   <button className={selectedSlot === slot.id ? "time-cell is-selected" : "time-cell"} onClick={() => setSelectedSlot(slot.id)} key={slot.id}>
-                    {new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" }).format(new Date(slot.startTime))}
+                    {new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" }).format(new Date(slot.startTime))} - {new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" }).format(new Date(slot.endTime))}
                   </button>
                 ))}
               </div>
-            ) : null}
+            ) : <p className="muted-copy">Müsait günlerden birini seç.</p>}
           </div>
           {message ? <p className="form-error">{message}</p> : null}
           <AnimatedActionButton color="cyan" fullWidth onClick={createBooking}>İstek at</AnimatedActionButton>
@@ -169,6 +191,14 @@ function ShopDetailContent({ shopId, token }: { shopId: string; token: string })
       </section>
     </>
   );
+}
+
+function localDayKey(value: string) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function MiniStat({ label, value }: { label: string; value: number }) {

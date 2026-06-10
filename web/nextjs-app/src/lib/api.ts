@@ -144,7 +144,16 @@ export type SessionSummary = {
 export type AnalysisReport = {
   sessionId: string;
   transcript: string;
-  analysis: Record<string, unknown>;
+  analysis: Record<string, unknown> & {
+    aiEvaluation?: {
+      score?: number | null;
+      reason?: string | null;
+      strengths?: string[];
+      improvements?: string[];
+      source?: string | null;
+      model?: string | null;
+    };
+  };
   createdAt: string;
 };
 
