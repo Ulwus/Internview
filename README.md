@@ -108,6 +108,6 @@ Proje 14 haftalık bir geliştirme planı izlemektedir. Güncel ilerleme için [
 | İP-1: Temel Altyapı | 1–2 | ✅ Tamamlandı |
 | İP-2: Backend Servisleri | 3–6 | ✅ Tamamlandı |
 | İP-3: Kafka Event Sistemi | 7 | ✅ Tamamlandı |
-| İP-4: WebRTC Video Altyapısı | 8–10 | 🔄 Devam ediyor |
-| İP-5: AI Konuşma Analizi | 11–12 | ⏳ Planlandı |
-| İP-6: Önyüz & Canlıya Alma | 13–14 | ⏳ Planlandı |
+| İP-4: WebRTC Video Altyapısı | 8–10 | ✅ Tamamlandı |
+| İP-5: AI Konuşma Analizi | 11–12 | ✅ Tamamlandı |
+| İP-6: Önyüz & Canlıya Alma | 13–14 | ✅ Tamamlandı |

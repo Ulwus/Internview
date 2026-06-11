@@ -195,19 +195,19 @@ gantt
 
 #### Hafta 11 — AI Speech Pipeline
 
-- [ ] Python servis yapılandırması
-- [ ] S3'ten video dosyası indirme
-- [ ] Audio extraction (ffmpeg)
-- [ ] OpenAI Whisper STT entegrasyonu
-- [ ] Transcript çıktısının doğrulanması
+- [X] Python servis yapılandırması
+- [X] S3'ten video dosyası indirme
+- [X] Audio extraction (ffmpeg)
+- [X] OpenAI Whisper STT entegrasyonu
+- [X] Transcript çıktısının doğrulanması
 
 #### Hafta 12 — Konuşma Analizi
 
-- [ ] WPM (Words Per Minute) hesaplama
-- [ ] Duraksama (Pause) tespiti ve oranı
-- [ ] Dolgu kelime (Filler Word) analizi
-- [ ] JSONB formatında sonuç kaydetme
-- [ ] `AnalysisCompletedEvent` Kafka producer
+- [X] WPM (Words Per Minute) hesaplama
+- [X] Duraksama (Pause) tespiti ve oranı
+- [X] Dolgu kelime (Filler Word) analizi
+- [X] JSONB formatında sonuç kaydetme
+- [X] `AnalysisCompletedEvent` Kafka producer
 
 ---
 
@@ -221,26 +221,26 @@ gantt
 
 #### Hafta 13 — Web ve Mobil Uygulama
 
-- [ ] Next.js: Login/Register sayfaları
-- [ ] Next.js: Uzman arama ve listeleme
-- [ ] Next.js: Randevu takvimi
-- [ ] Next.js: Mülakat odası (WebRTC)
-- [ ] Flutter: Login/Register ekranları
-- [ ] Flutter: Uzman arama ve listeleme
-- [ ] Flutter: Randevu takvimi
-- [ ] Flutter: Mülakat odası (flutter_webrtc)
-- [ ] API entegrasyonu ve end-to-end testler
+- [X] Next.js: Login/Register sayfaları
+- [X] Next.js: Uzman arama ve listeleme
+- [X] Next.js: Randevu takvimi
+- [X] Next.js: Mülakat odası (WebRTC)
+- [X] Flutter: Login/Register ekranları
+- [X] Flutter: Uzman arama ve listeleme
+- [X] Flutter: Randevu takvimi
+- [X] Flutter: Mülakat odası (flutter_webrtc)
+- [X] API entegrasyonu ve end-to-end testler
 
 #### Hafta 14 — Bulut Ortamına Dağıtım
 
-- [ ] Dockerfile'lar (her servis için)
-- [ ] GitHub Actions CI pipeline (build + test)
-- [ ] GitHub Actions CD pipeline (deploy)
-- [ ] AWS EC2 instance provisioning
-- [ ] VPC ve Security Group yapılandırması
-- [ ] S3 bucket yapılandırması
-- [ ] Production ortamında smoke test
-- [ ] DNS ve SSL yapılandırması
+- [X] Dockerfile'lar (her servis için)
+- [X] GitHub Actions CI pipeline (build + test)
+- [X] GitHub Actions CD pipeline (deploy)
+- [X] AWS EC2 instance provisioning
+- [X] VPC ve Security Group yapılandırması
+- [X] S3 bucket yapılandırması
+- [X] Production ortamında smoke test
+- [X] DNS ve SSL yapılandırması
 
 ---
 
