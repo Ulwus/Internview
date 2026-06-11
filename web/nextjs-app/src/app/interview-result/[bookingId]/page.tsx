@@ -27,26 +27,41 @@ function ResultContent({ bookingId, role, token }: { bookingId: string; role: "C
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [message, setMessage] = useState("");
+  const [formHydrated, setFormHydrated] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const isExpert = role === "EXPERT";
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ syncForm = false }: { syncForm?: boolean } = {}) => {
     try {
       const next = await apiFetch<Booking>(`/bookings/${bookingId}`, { token });
       setBooking(next);
-      setRating(isExpert ? next.expertRating ?? 5 : next.candidateRating ?? 5);
-      setComment(isExpert ? next.expertComment ?? "" : next.candidateComment ?? "");
+      if (syncForm || !formHydrated) {
+        setRating(isExpert ? next.expertRating ?? 5 : next.candidateRating ?? 5);
+        setComment(isExpert ? next.expertComment ?? "" : next.candidateComment ?? "");
+        setFormHydrated(true);
+      }
       const session = await apiFetch<{ sessionId: string }>(`/interviews/sessions/booking/${bookingId}`, { token }).catch(() => null);
       if (session?.sessionId) {
         const nextReport = await apiFetch<AnalysisReport>(`/interviews/${session.sessionId}/report`, { token }).catch(() => null);
         if (nextReport) setReport(nextReport);
       }
+      setLastUpdatedAt(new Date());
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Sonuç alınamadı");
     }
-  }, [bookingId, isExpert, token]);
+  }, [bookingId, formHydrated, isExpert, token]);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
+    void Promise.resolve().then(() => load({ syncForm: true }));
+  }, [load]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -64,7 +79,7 @@ function ResultContent({ bookingId, role, token }: { bookingId: string; role: "C
         body: JSON.stringify(isExpert ? { expertRating: rating, expertComment: comment } : { candidateRating: rating, candidateComment: comment }),
       });
       setMessage("Değerlendirme kaydedildi.");
-      await load();
+      await load({ syncForm: true });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Değerlendirme kaydedilemedi");
     }
@@ -83,6 +98,9 @@ function ResultContent({ bookingId, role, token }: { bookingId: string; role: "C
           <strong>{formatDateTime(booking.scheduledStart)} - {formatDateTime(booking.scheduledEnd)}</strong>
           <StatusChip tone={booking.status === "COMPLETED" ? "cyan" : "white"}>{booking.status}</StatusChip>
         </div>
+        <p className="muted-copy">
+          {lastUpdatedAt ? `Otomatik yenilendi: ${lastUpdatedAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "Sonuçlar otomatik yenilenir."}
+        </p>
       </SectionCard>
 
       {isExpert ? null : (

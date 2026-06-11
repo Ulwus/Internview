@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Internview Proje Sunumu</title>
+  <style>
+    :root {
+      --ink: #000000;
+      --muted: rgba(0, 0, 0, 0.66);
+      --paper: #f7f5ef;
+      --white: #ffffff;
+      --cyan: #00e5ff;
+      --yellow: #ffd600;
+      --orange: #ff9100;
+      --purple: #b388ff;
+      --green: #00c853;
+      --border: #000000;
+      --shadow: 7px 7px 0 #000000;
+      --shadow-sm: 4px 4px 0 #000000;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Space Grotesk", "Nunito", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle, rgba(0, 0, 0, 0.16) 1.4px, transparent 1.6px),
+        var(--paper);
+      background-size: 22px 22px;
+    }
+
+    .deck {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 90px;
+    }
+
+    .slide {
+      position: relative;
+      min-height: 720px;
+      margin: 0 0 28px;
+      padding: 58px 64px;
+      overflow: hidden;
+      background: var(--white);
+      border: 4px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 16px;
+      background: var(--cyan);
+      border-right: 4px solid var(--border);
+    }
+
+    .slide::after {
+      content: attr(data-slide);
+      position: absolute;
+      right: 34px;
+      bottom: 24px;
+      color: rgba(0, 0, 0, 0.48);
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+    }
+
+    .cover {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 42px;
+      align-items: center;
+      color: var(--ink);
+      background:
+        radial-gradient(circle, rgba(0, 0, 0, 0.12) 1.4px, transparent 1.7px),
+        linear-gradient(135deg, var(--yellow), #fff7be 58%, var(--cyan));
+      background-size: 22px 22px, auto;
+    }
+
+    .cover::before {
+      background: var(--purple);
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      display: inline-block;
+      width: fit-content;
+      padding: 8px 12px;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--cyan);
+      border: 3px solid var(--border);
+      border-radius: 999px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .cover .eyebrow {
+      color: var(--ink);
+      background: var(--white);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin-bottom: 20px;
+      font-size: 70px;
+      line-height: 0.96;
+      letter-spacing: 0;
+      font-weight: 950;
+    }
+
+    h2 {
+      max-width: 920px;
+      margin-bottom: 22px;
+      color: var(--ink);
+      font-size: 48px;
+      line-height: 1.04;
+      letter-spacing: 0;
+      font-weight: 950;
+    }
+
+    .cover h2,
+    .cover p,
+    .cover h3 {
+      color: var(--ink);
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      color: var(--ink);
+      font-size: 20px;
+      line-height: 1.18;
+      letter-spacing: 0;
+      font-weight: 950;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.48;
+    }
+
+    .lead {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 23px;
+      line-height: 1.42;
+      font-weight: 800;
+    }
+
+    .cover .lead {
+      color: rgba(0, 0, 0, 0.72);
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 18px;
+      margin-top: 30px;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .panel,
+    .metric,
+    .service,
+    .step {
+      background: var(--white);
+      border: 3px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .panel {
+      padding: 24px;
+    }
+
+    .panel strong,
+    .service strong,
+    .step strong {
+      color: var(--ink);
+      font-weight: 950;
+    }
+
+    .panel p,
+    .service p,
+    .step p {
+      margin-bottom: 0;
+      font-size: 15px;
+      font-weight: 750;
+    }
+
+    .metric {
+      padding: 18px;
+      background: var(--yellow);
+    }
+
+    .metric b {
+      display: block;
+      color: var(--ink);
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 8px;
+      color: var(--ink);
+      font-weight: 950;
+    }
+
+    .visual-system {
+      display: grid;
+      gap: 16px;
+      margin-top: 34px;
+    }
+
+    .layer {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .layer-label {
+      display: grid;
+      place-items: center;
+      min-height: 76px;
+      padding: 14px;
+      color: var(--ink);
+      font-weight: 950;
+      text-align: center;
+      background: var(--cyan);
+      border: 3px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .layer-items {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .chip {
+      display: grid;
+      place-items: center;
+      min-height: 76px;
+      padding: 12px;
+      color: var(--ink);
+      font-weight: 950;
+      text-align: center;
+      border: 3px solid var(--border);
+      border-radius: 14px;
+      background: var(--white);
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .chip.accent {
+      color: var(--ink);
+      background: var(--orange);
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 36px;
+    }
+
+    .step {
+      position: relative;
+      min-height: 190px;
+      padding: 18px;
+    }
+
+    .step .num {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 20px;
+      color: var(--ink);
+      font-weight: 950;
+      background: var(--cyan);
+      border: 3px solid var(--border);
+      border-radius: 999px;
+    }
+
+    .services {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .service {
+      min-height: 126px;
+      padding: 18px;
+    }
+
+    .service .icon {
+      margin-bottom: 12px;
+      color: var(--ink);
+      font-size: 28px;
+      font-weight: 950;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+      margin-top: 34px;
+    }
+
+    .flow-node {
+      position: relative;
+      min-height: 145px;
+      padding: 20px;
+      color: var(--ink);
+      background: var(--cyan);
+      border: 3px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .flow-node:nth-child(even) {
+      color: var(--ink);
+      background: var(--yellow);
+    }
+
+    .flow-node:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 50%;
+      right: -12px;
+      z-index: 2;
+      width: 24px;
+      height: 24px;
+      color: var(--ink);
+      font-weight: 950;
+      text-align: center;
+      line-height: 22px;
+      background: var(--purple);
+      border: 3px solid var(--border);
+      border-radius: 50%;
+      transform: translateY(-50%);
+    }
+
+    .flow-node h3 {
+      color: inherit;
+      font-size: 18px;
+    }
+
+    .flow-node p {
+      color: inherit;
+      opacity: 0.84;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .code-strip {
+      margin-top: 26px;
+      padding: 18px 20px;
+      color: var(--ink);
+      font: 900 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      background: var(--white);
+      border: 3px solid var(--border);
+      border-left: 14px solid var(--orange);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 34px;
+      align-items: center;
+    }
+
+    .device {
+      min-height: 430px;
+      padding: 28px;
+      color: var(--ink);
+      background: var(--purple);
+      border: 4px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .screen {
+      height: 300px;
+      margin-top: 24px;
+      padding: 18px;
+      border: 4px solid var(--border);
+      border-radius: 14px;
+      background:
+        radial-gradient(circle, rgba(0, 0, 0, 0.16) 1.2px, transparent 1.5px),
+        var(--white);
+      background-size: 18px 18px;
+    }
+
+    .video-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .video {
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      font-weight: 950;
+      background: var(--cyan);
+      border: 3px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .video.remote {
+      background: var(--yellow);
+    }
+
+    .report {
+      display: grid;
+      grid-template-columns: 0.78fr 1.22fr;
+      gap: 28px;
+      margin-top: 28px;
+    }
+
+    .score {
+      display: grid;
+      place-items: center;
+      min-height: 330px;
+      color: var(--ink);
+      text-align: center;
+      background: var(--cyan);
+      border: 4px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .score b {
+      display: block;
+      color: var(--ink);
+      font-size: 92px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 12px;
+      margin: 24px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      position: relative;
+      padding: 14px 16px 14px 46px;
+      color: var(--ink);
+      font-weight: 900;
+      background: var(--white);
+      border: 3px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 18px;
+      color: var(--orange);
+      font-weight: 950;
+    }
+
+    .device .flow .flow-node::after {
+      display: none;
+    }
+
+    .toolbar {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      background: var(--white);
+      border: 3px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar button,
+    .toolbar a {
+      min-width: 44px;
+      height: 40px;
+      padding: 0 13px;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 950;
+      text-decoration: none;
+      background: var(--yellow);
+      border: 3px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .toolbar button:hover,
+    .toolbar a:hover {
+      background: var(--cyan);
+    }
+
+    @media (max-width: 980px) {
+      .slide {
+        min-height: auto;
+        padding: 44px 28px 70px;
+      }
+
+      .cover,
+      .split,
+      .report {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 48px;
+      }
+
+      h2 {
+        font-size: 34px;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .services,
+      .timeline,
+      .flow,
+      .layer,
+      .layer-items {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-node:not(:last-child)::after {
+        display: none;
+      }
+    }
+
+    @page {
+      size: 297mm 210mm;
+      margin: 0;
+    }
+
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: var(--paper);
+      }
+
+      .deck {
+        width: 297mm;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .slide {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 297mm;
+        height: 210mm;
+        min-height: 210mm;
+        margin: 0;
+        padding: 15mm 18mm 13mm 20mm;
+        overflow: hidden;
+        border: 3px solid var(--border);
+        border-radius: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .slide > * {
+        transform: scale(0.9);
+        transform-origin: center;
+      }
+
+      .cover {
+        display: grid;
+      }
+
+      .visual-system,
+      .services,
+      .timeline,
+      .flow,
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .report {
+        margin-top: 7mm;
+      }
+
+      .slide:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      h1 {
+        font-size: 40pt;
+      }
+
+      h2 {
+        font-size: 25pt;
+      }
+
+      p,
+      .lead {
+        font-size: 11.5pt;
+      }
+
+      h3 {
+        font-size: 13pt;
+      }
+
+      .panel p,
+      .service p,
+      .step p,
+      .flow-node p {
+        font-size: 9pt;
+      }
+
+      .metric b {
+        font-size: 23pt;
+      }
+
+      .services {
+        grid-template-columns: repeat(5, 1fr);
+      }
+
+      .timeline {
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .flow {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide cover" id="slide-1" data-slide="01 / 12">
+      <div>
+        <p class="eyebrow">Internview SaaS Platformu</p>
+        <h1>Gerçek zamanlı mock mülakat ve AI analiz sistemi</h1>
+        <p class="lead">Adaylar doğru uzmanla eşleşir, randevu oluşturur, web veya mobilden canlı mülakata girer ve kayıt üzerinden ölçülebilir performans raporu alır.</p>
+      </div>
+      <div class="device">
+        <h3>Canlı mülakat deneyimi</h3>
+        <p>WebRTC + Mediasoup SFU ile iki taraflı video, sunucu tarafında kayıt ve analiz için otomatik segment akışı.</p>
+        <div class="screen">
+          <div class="video-grid">
+            <div class="video">Aday</div>
+            <div class="video remote">Uzman</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-2" data-slide="02 / 12">
+      <p class="eyebrow">Problem ve Çözüm</p>
+      <h2>Mülakat hazırlığını ölçülebilir, gerçekçi ve ölçeklenebilir hale getirir.</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Bugünkü problem</h3>
+          <p>Adaylar çoğu zaman kendi kendine çalışır veya çevresinden sınırlı geri bildirim alır. Süreç gerçek mülakat baskısını simüle etmez ve objektif metrik üretmez.</p>
+        </div>
+        <div class="panel">
+          <h3>Internview yaklaşımı</h3>
+          <p>Uzman eşleme, canlı video mülakat, kayıt, transkript ve AI destekli değerlendirme tek uçtan uca akışta birleşir.</p>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="metric"><b>1</b><span>Uzman seçimi ve randevu</span></div>
+        <div class="metric"><b>2</b><span>Web/mobile canlı mülakat</span></div>
+        <div class="metric"><b>3</b><span>Whisper + AI performans raporu</span></div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-3" data-slide="03 / 12">
+      <p class="eyebrow">Sistem Mimarisi</p>
+      <h2>Dört katmanlı, mikroservis odaklı ve event-driven yapı.</h2>
+      <div class="visual-system">
+        <div class="layer">
+          <div class="layer-label">Client Layer</div>
+          <div class="layer-items">
+            <div class="chip">Next.js Web</div>
+            <div class="chip">Flutter Mobile</div>
+            <div class="chip">JWT Auth</div>
+            <div class="chip">WebRTC UI</div>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="layer-label">Backend Layer</div>
+          <div class="layer-items">
+            <div class="chip accent">Gateway</div>
+            <div class="chip">Auth</div>
+            <div class="chip">User</div>
+            <div class="chip">Booking / Interview</div>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="layer-label">Real-Time Layer</div>
+          <div class="layer-items">
+            <div class="chip">Spring WebSocket</div>
+            <div class="chip accent">Mediasoup SFU</div>
+            <div class="chip">Coturn</div>
+            <div class="chip">Recording</div>
+          </div>
+        </div>
+        <div class="layer">
+          <div class="layer-label">Data Layer</div>
+          <div class="layer-items">
+            <div class="chip">PostgreSQL</div>
+            <div class="chip">Redis</div>
+            <div class="chip accent">Kafka</div>
+            <div class="chip">MinIO / S3</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-4" data-slide="04 / 12">
+      <p class="eyebrow">Servis Haritası</p>
+      <h2>Her servis tek bir iş alanını taşır, Gateway dış dünyaya tek giriş noktası olur.</h2>
+      <div class="services">
+        <div class="service"><div class="icon">01</div><strong>auth-service</strong><p>Login, register, JWT ve rol bazlı erişim.</p></div>
+        <div class="service"><div class="icon">02</div><strong>user-service</strong><p>Kullanıcı, uzman profili, shop ve rating özetleri.</p></div>
+        <div class="service"><div class="icon">03</div><strong>booking-service</strong><p>Slot, booking, onay, iptal ve feedback akışı.</p></div>
+        <div class="service"><div class="icon">04</div><strong>interview-service</strong><p>Session, signaling, media proxy, complete ve report API.</p></div>
+        <div class="service"><div class="icon">05</div><strong>media-service</strong><p>Mediasoup oda, transport, producer, consumer ve kayıt.</p></div>
+        <div class="service"><div class="icon">06</div><strong>ai-analysis</strong><p>Kafka eventleri, Whisper transkript ve final AI yorumu.</p></div>
+        <div class="service"><div class="icon">07</div><strong>whisper-cpp</strong><p>Self-hosted speech-to-text servis katmanı.</p></div>
+        <div class="service"><div class="icon">08</div><strong>postgres</strong><p>Booking, session, transcript ve analysis tabloları.</p></div>
+        <div class="service"><div class="icon">09</div><strong>redis</strong><p>Slot lock ve signaling koordinasyon state'i.</p></div>
+        <div class="service"><div class="icon">10</div><strong>kafka</strong><p>Servisler arası olay omurgası.</p></div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-5" data-slide="05 / 12">
+      <p class="eyebrow">Uçtan Uca Kullanıcı Akışı</p>
+      <h2>Adayın uzman bulmasından raporu görmesine kadar ana yol.</h2>
+      <div class="timeline">
+        <div class="step"><span class="num">1</span><strong>Giriş</strong><p>Gateway üzerinden auth-service JWT üretir.</p></div>
+        <div class="step"><span class="num">2</span><strong>Keşif</strong><p>Aday uzmanları skill, sektör ve uygunluğa göre filtreler.</p></div>
+        <div class="step"><span class="num">3</span><strong>Booking</strong><p>Slot Redis lock ile korunur ve PENDING booking açılır.</p></div>
+        <div class="step"><span class="num">4</span><strong>Onay</strong><p>Uzman onaylayınca booking CONFIRMED olur.</p></div>
+        <div class="step"><span class="num">5</span><strong>Mülakat</strong><p>Session ve mediasoup room hazırdır.</p></div>
+        <div class="step"><span class="num">6</span><strong>Rapor</strong><p>Kayıt, transkript, metrik ve AI yorumu gösterilir.</p></div>
+      </div>
+      <div class="code-strip">POST /bookings -> POST /bookings/{id}/approve -> BOOKING_CREATED -> InterviewSession + Mediasoup Room</div>
+    </section>
+
+    <section class="slide" id="slide-6" data-slide="06 / 12">
+      <p class="eyebrow">Booking ve Session Oluşumu</p>
+      <h2>Randevu onayı, Kafka üzerinden mülakat odası hazırlığını tetikler.</h2>
+      <div class="flow">
+        <div class="flow-node"><h3>Aday</h3><p>Uzman slotunu seçer ve booking isteği gönderir.</p></div>
+        <div class="flow-node"><h3>Booking Service</h3><p>Redis lock alır, slotu kontrol eder, PENDING kaydı yazar.</p></div>
+        <div class="flow-node"><h3>Uzman Onayı</h3><p>Status CONFIRMED olur ve domain event hazırlanır.</p></div>
+        <div class="flow-node"><h3>Kafka</h3><p>booking-events topic içine BOOKING_CREATED basılır.</p></div>
+        <div class="flow-node"><h3>Interview Service</h3><p>Session kaydı ve media-service içinde room oluşturulur.</p></div>
+      </div>
+      <div class="code-strip">Topic: booking-events
+Event: BOOKING_CREATED
+Sonuç: booking CONFIRMED, interview session CREATED, media room ready</div>
+    </section>
+
+    <section class="slide" id="slide-7" data-slide="07 / 12">
+      <p class="eyebrow">Canlı Görüşme</p>
+      <h2>Web ve mobil P2P yerine Mediasoup SFU üzerinden bağlanır.</h2>
+      <div class="split">
+        <div>
+          <p class="lead">Client önce kamera ve mikrofon izni alır, router capabilities okur, send/receive transport oluşturur ve producer/consumer akışını başlatır.</p>
+          <ul class="checklist">
+            <li>Signaling sadece oda durumu ve koordinasyon taşır.</li>
+            <li>Medya audio/video transportları üzerinden akar.</li>
+            <li>Coturn, zor ağ koşullarında STUN/TURN desteği verir.</li>
+            <li>MEDIASOUP_ANNOUNCED_IP bağlantı kararlılığı için tek merkezden belirlenir.</li>
+          </ul>
+        </div>
+        <div class="device">
+          <h3>SFU modeli</h3>
+          <div class="flow" style="grid-template-columns: 1fr; gap: 10px; margin-top: 18px;">
+            <div class="flow-node"><h3>Web App</h3><p>Audio/video upload, remote stream consume.</p></div>
+            <div class="flow-node"><h3>Mediasoup SFU</h3><p>Selective forwarding + recording source.</p></div>
+            <div class="flow-node"><h3>Mobile App</h3><p>flutter_webrtc ile aynı media akışı.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-8" data-slide="08 / 12">
+      <p class="eyebrow">Recording Pipeline</p>
+      <h2>Kayıt segmentlere bölünür, MinIO'ya akar ve her segment Kafka event üretir.</h2>
+      <div class="flow">
+        <div class="flow-node"><h3>Start Recording</h3><p>Expert tetikler, producer hazır değilse pending bekler.</p></div>
+        <div class="flow-node"><h3>FFmpeg</h3><p>PlainTransport consumerları SDP ile segmentli webm üretir.</p></div>
+        <div class="flow-node"><h3>MinIO</h3><p>recordings/{sessionId}/000000-000010.webm</p></div>
+        <div class="flow-node"><h3>Kafka</h3><p>RECORDING_SEGMENT_UPLOADED yayınlanır.</p></div>
+        <div class="flow-node"><h3>AI Service</h3><p>Segmenti indirir ve transkript pipeline'ını başlatır.</p></div>
+      </div>
+      <div class="code-strip">Bucket: internview-recordings
+Segment: recordings/{sessionId}/000000-000010.webm
+Manifest: recordings/{sessionId}/manifest.json</div>
+    </section>
+
+    <section class="slide" id="slide-9" data-slide="09 / 12">
+      <p class="eyebrow">Whisper ve AI Analizi</p>
+      <h2>Her segment bir kez transcribe edilir, final AI yorumu mülakat kapanınca çalışır.</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Segment akışı</h3>
+          <p>AI service segmenti MinIO'dan indirir, ffmpeg ile WAV'a çevirir, ses seviyesi kontrol eder ve uygun segmenti whisper-cpp-service içine gönderir.</p>
+          <div class="code-strip">recording-segments -> WAV -> Whisper -> interview_transcript_segments</div>
+        </div>
+        <div class="panel">
+          <h3>Final akışı</h3>
+          <p>INTERVIEW_COMPLETED event manifest URL ile gelirse full video tekrar işlenmez. Segmentlerden aggregate kurulur ve LLM değerlendirmesi sadece bir kez yapılır.</p>
+          <div class="code-strip">interview-events -> rebuild aggregate -> Groq LLM -> interview_analysis</div>
+        </div>
+      </div>
+      <div class="grid-4">
+        <div class="metric"><b>WPM</b><span>Konuşma hızı</span></div>
+        <div class="metric"><b>Pause</b><span>Duraksama oranı</span></div>
+        <div class="metric"><b>Filler</b><span>Dolgu kelime kullanımı</span></div>
+        <div class="metric"><b>Score</b><span>Genel performans</span></div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-10" data-slide="10 / 12">
+      <p class="eyebrow">Sonuç Sayfası</p>
+      <h2>Rapor, feedback ve tamamlanma durumu aynı booking üzerinden okunur.</h2>
+      <div class="report">
+        <div class="score">
+          <div>
+            <b>78.5</b>
+            <span>Overall Score</span>
+          </div>
+        </div>
+        <div>
+          <p class="lead">Web sonuç sayfası booking detayını, session bilgisini ve AI report endpointini çeker. AI raporu henüz hazır değilse bekleme durumu gösterilir; polling ile sonuç otomatik güncellenir.</p>
+          <ul class="checklist">
+            <li>GET /bookings/{bookingId}</li>
+            <li>GET /interviews/sessions/booking/{bookingId}</li>
+            <li>GET /interviews/{sessionId}/report</li>
+            <li>Uzman adayı, aday uzmanı feedback endpointleriyle değerlendirir.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-11" data-slide="11 / 12">
+      <p class="eyebrow">Teknoloji Seçimleri</p>
+      <h2>Olgun teknoloji, ölçeklenebilir akış ve hızlı geliştirme dengesi.</h2>
+      <div class="grid-3">
+        <div class="panel"><h3>Frontend</h3><p>Next.js + React web uygulaması, Flutter + Riverpod mobil uygulama, native WebRTC erişimi.</p></div>
+        <div class="panel"><h3>Backend</h3><p>Java 21, Spring Boot, Spring Cloud Gateway, Consul ve JWT tabanlı güvenlik.</p></div>
+        <div class="panel"><h3>Data</h3><p>PostgreSQL kalıcı veri, Redis lock/state, Kafka event streaming, MinIO/S3 kayıt depolama.</p></div>
+        <div class="panel"><h3>Real-Time</h3><p>WebRTC, Mediasoup SFU, Coturn ve Spring WebSocket ile düşük gecikmeli video.</p></div>
+        <div class="panel"><h3>AI</h3><p>whisper.cpp self-hosted transkript, segment metrikleri ve Groq LLM final değerlendirmesi.</p></div>
+        <div class="panel"><h3>DevOps</h3><p>Docker Compose ile lokal tüm altyapı, AWS hedef ortam ve GitHub Actions CI/CD.</p></div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-12" data-slide="12 / 12">
+      <p class="eyebrow">Demo ve Log Hikayesi</p>
+      <h2>Başarılı bir mülakatta beklenen sinyaller net ve izlenebilir.</h2>
+      <div class="grid-2">
+        <div>
+          <ul class="checklist">
+            <li>Booking PENDING durumundan CONFIRMED durumuna geçer.</li>
+            <li>Interview session ve mediasoup room oluşur.</li>
+            <li>Web ve mobil producer/consumer akışıyla birbirini görür.</li>
+            <li>Recording segmentleri MinIO'ya yüklenir.</li>
+            <li>Whisper segment bazlı çalışır, final LLM tek kez çalışır.</li>
+            <li>Booking COMPLETED olur ve sonuç sayfası raporu gösterir.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Çalıştırma</h3>
+          <p>Root compose dosyası altyapıyı ve servisleri birlikte kaldırır.</p>
+          <div class="code-strip">docker compose up --build -d</div>
+          <p>LAN bağlantı testi için dev script announced IP değerini .env içine yazar.</p>
+          <div class="code-strip">./infrastructure/scripts/dev-compose.sh up -d</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="toolbar" aria-label="Sunum kontrolü">
+    <button type="button" id="prev" title="Önceki slayt">‹</button>
+    <a href="#slide-1" title="Başa dön">1</a>
+    <button type="button" id="next" title="Sonraki slayt">›</button>
+    <button type="button" id="print" title="Yazdır">PDF</button>
+  </nav>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    let index = 0;
+
+    function goToSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides[index].scrollIntoView({ behavior: "smooth", block: "start" });
+      history.replaceState(null, "", `#${slides[index].id}`);
+    }
+
+    function syncFromHash() {
+      const hash = window.location.hash.slice(1);
+      const found = slides.findIndex((slide) => slide.id === hash);
+      if (found >= 0) index = found;
+    }
+
+    document.getElementById("prev").addEventListener("click", () => goToSlide(index - 1));
+    document.getElementById("next").addEventListener("click", () => goToSlide(index + 1));
+    document.getElementById("print").addEventListener("click", () => window.print());
+
+    window.addEventListener("hashchange", syncFromHash);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown") goToSlide(index + 1);
+      if (event.key === "ArrowLeft" || event.key === "PageUp") goToSlide(index - 1);
+      if (event.key.toLowerCase() === "p") window.print();
+    });
+
+    syncFromHash();
+  </script>
+</body>
+</html>

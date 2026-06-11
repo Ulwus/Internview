@@ -14,7 +14,10 @@ class MediaProjectionFgs {
 
   static Future<void> stop() async {
     if (!Platform.isAndroid) return;
-    await _channel.invokeMethod<void>('stop');
+    try {
+      await _channel.invokeMethod<void>('stop');
+    } on PlatformException {
+      // Best-effort cleanup only. A stale service should never block app startup.
+    }
   }
 }
-

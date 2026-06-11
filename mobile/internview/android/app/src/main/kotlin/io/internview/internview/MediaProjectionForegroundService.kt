@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 
 class MediaProjectionForegroundService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
@@ -19,7 +20,17 @@ class MediaProjectionForegroundService : Service() {
     } else {
       startForeground(NOTIF_ID, notification)
     }
-    return START_STICKY
+    return START_NOT_STICKY
+  }
+
+  override fun onDestroy() {
+    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+    super.onDestroy()
+  }
+
+  override fun onTaskRemoved(rootIntent: Intent?) {
+    stopSelf()
+    super.onTaskRemoved(rootIntent)
   }
 
   private fun buildNotification(): Notification {
@@ -41,4 +52,3 @@ class MediaProjectionForegroundService : Service() {
     private const val NOTIF_ID = 4242
   }
 }
-

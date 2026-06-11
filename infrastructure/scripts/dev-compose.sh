@@ -5,6 +5,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 ENV_FILE="$ROOT_DIR/.env"
 COMPOSE_FILE="$ROOT_DIR/infrastructure/docker-compose.yml"
+WHISPER_METAL_SERVICE="$ROOT_DIR/infrastructure/scripts/whisper-metal-service.sh"
+WHISPER_METAL_PORT="${WHISPER_CPP_SERVER_PORT:-8787}"
 
 detect_host_ip() {
   if [ -n "${MEDIASOUP_ANNOUNCED_IP_OVERRIDE:-}" ]; then
@@ -83,5 +85,23 @@ echo "MEDIASOUP_ANNOUNCED_IP=$HOST_IP"
 if [ "$#" -eq 0 ]; then
   set -- up -d
 fi
+
+case "${1:-}" in
+  up|start)
+    if [ "${ENABLE_WHISPER_METAL:-true}" = "true" ]; then
+      "$WHISPER_METAL_SERVICE" start
+      set_env_value "WHISPER_BACKEND" "whisper_cpp"
+      set_env_value "AI_ANALYSIS_WHISPER_CPP_SERVER_URL" "http://host.docker.internal:$WHISPER_METAL_PORT"
+      set_env_value "PRELOAD_WHISPER_MODEL" "false"
+      set_env_value "AI_ANALYSIS_WORK_HOST_DIR" "$ROOT_DIR/.local/share/ai-analysis-work"
+      echo "AI_ANALYSIS_WHISPER_CPP_SERVER_URL=http://host.docker.internal:$WHISPER_METAL_PORT"
+    fi
+    ;;
+  down|stop)
+    if [ "${ENABLE_WHISPER_METAL:-true}" = "true" ]; then
+      "$WHISPER_METAL_SERVICE" stop
+    fi
+    ;;
+esac
 
 exec docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"

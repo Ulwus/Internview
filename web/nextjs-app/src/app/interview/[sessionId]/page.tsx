@@ -201,6 +201,12 @@ export default function InterviewRoomPage() {
 
     async function joinRoom() {
       try {
+        roomClosedRef.current = false;
+        producedIdsRef.current.clear();
+        consumedIdsRef.current.clear();
+        consumingIdsRef.current.clear();
+        setRemoteTracks([]);
+
         if (bookingId) {
           const booking = await apiFetch<Booking>(`/bookings/${bookingId}`, { token });
           const now = Date.now();
@@ -469,7 +475,6 @@ async function createTransport(sessionId: string, token: string) {
   return apiFetch<TransportInfo>(`/interviews/sessions/${sessionId}/media/transport`, {
     method: "POST",
     token,
-    body: JSON.stringify({ announcedIp: window.location.hostname }),
   });
 }
 
