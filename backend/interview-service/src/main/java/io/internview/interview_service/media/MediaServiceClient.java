@@ -1,6 +1,7 @@
 package io.internview.interview_service.media;
 
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import io.internview.interview_service.media.dto.MediaServiceDtos.CloseRoomResponse;
@@ -130,10 +131,18 @@ public class MediaServiceClient {
 	}
 
 	public ProducerListResponse listProducers(String roomId) {
-		return this.mediaServiceRestClient.get()
-			.uri("/rooms/{roomId}/producers", roomId)
-			.retrieve()
-			.body(ProducerListResponse.class);
+		try {
+			return this.mediaServiceRestClient.get()
+				.uri("/rooms/{roomId}/producers", roomId)
+				.retrieve()
+				.body(ProducerListResponse.class);
+		}
+		catch (HttpClientErrorException.NotFound ex) {
+			log.debug("Media Service: Room kapalı, producer listesi boş dönüyor: {}", roomId);
+			return ProducerListResponse.builder()
+				.producers(java.util.List.of())
+				.build();
+		}
 	}
 
 	/**

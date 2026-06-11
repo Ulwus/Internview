@@ -25,7 +25,7 @@ class InterviewCompletedPayload(BaseModel):
     candidate_id: UUID
     expert_id: UUID
     duration_seconds: float | None = None
-    recorded_video_url: str
+    recorded_video_url: str | None = None
 
 
 class InterviewCompletedEvent(BaseModel):

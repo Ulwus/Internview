@@ -109,12 +109,15 @@ public class InterviewSessionService {
 		}
 
 		// Recording aktifse durdur ve S3 URL'sini al (best-effort).
-		String finalVideoUrl = recordedVideoUrl;
+		String finalVideoUrl = this.normalizeRecordedVideoUrl(recordedVideoUrl);
 		try {
 			RecordingStopResponse recordingResponse = this.mediaServiceClient
 				.stopRecording(session.getId().toString());
-			if (recordingResponse != null && recordingResponse.getRecordedVideoUrl() != null) {
-				finalVideoUrl = recordingResponse.getRecordedVideoUrl();
+			String stoppedRecordingUrl = recordingResponse != null
+				? this.normalizeRecordedVideoUrl(recordingResponse.getRecordedVideoUrl())
+				: null;
+			if (stoppedRecordingUrl != null) {
+				finalVideoUrl = stoppedRecordingUrl;
 				log.info("Recording durduruldu, S3 URL: {}", finalVideoUrl);
 			}
 		}
@@ -126,8 +129,9 @@ public class InterviewSessionService {
 		// closeRoom response'u recordedVideoUrl içeriyorsa onu kullan.
 		try {
 			String closeUrl = this.mediaServiceClient.closeRoom(session.getId().toString());
-			if (finalVideoUrl == null && closeUrl != null) {
-				finalVideoUrl = closeUrl;
+			String normalizedCloseUrl = this.normalizeRecordedVideoUrl(closeUrl);
+			if (finalVideoUrl == null && normalizedCloseUrl != null) {
+				finalVideoUrl = normalizedCloseUrl;
 				log.info("Room close sırasında recording yakalandı: {}", finalVideoUrl);
 			}
 		}
@@ -165,5 +169,12 @@ public class InterviewSessionService {
 			return 0L;
 		}
 		return Math.max(0L, Duration.between(start, Instant.now()).getSeconds());
+	}
+
+	private String normalizeRecordedVideoUrl(String recordedVideoUrl) {
+		if (recordedVideoUrl == null || recordedVideoUrl.isBlank()) {
+			return null;
+		}
+		return recordedVideoUrl.trim();
 	}
 }

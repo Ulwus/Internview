@@ -143,7 +143,7 @@ def save_segment_analysis(
         )
 
 
-def rebuild_session_analysis_from_segments(session_id: UUID) -> None:
+def rebuild_session_analysis_from_segments(session_id: UUID, *, evaluate_ai: bool = True) -> None:
     with engine.begin() as connection:
         rows = connection.execute(
             text("""
@@ -166,6 +166,7 @@ def rebuild_session_analysis_from_segments(session_id: UUID) -> None:
             f"[{int(row['start_second'])}-{int(row['end_second'])}s] {row['transcript']}".strip()
             for row in rows
         )
+        evaluation_transcript = "\n".join(str(row["transcript"] or "").strip() for row in rows).strip()
         analyses = [_as_dict(row["analysis_result"]) for row in rows]
         total_words = sum(int(analysis.get("total_words", 0)) for analysis in analyses)
         duration = max(float(row["end_second"]) for row in rows)
@@ -199,7 +200,17 @@ def rebuild_session_analysis_from_segments(session_id: UUID) -> None:
             aggregate["pause_ratio"],
             aggregate["filler_word_ratio"],
         )
-        aggregate["ai_evaluation"] = evaluate_interview(timed_transcript, aggregate)
+        if evaluate_ai:
+            aggregate["ai_evaluation"] = evaluate_interview(evaluation_transcript, aggregate)
+        else:
+            aggregate["ai_evaluation"] = {
+                "score": None,
+                "reason": "AI değerlendirmesi mülakat kaydı tamamlanınca oluşturulacak.",
+                "strengths": [],
+                "improvements": [],
+                "source": "pending",
+                "model": None,
+            }
 
         save_analysis(session_id, timed_transcript, aggregate)
 

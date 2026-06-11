@@ -13,14 +13,45 @@ const kafkaPublisher = require('./kafka-publisher');
 const { v4: uuidv4 } = require('uuid');
 const dgram = require('dgram');
 
-async function getFreePort() {
+async function getFreePorts(count) {
   return new Promise((resolve, reject) => {
-    const socket = dgram.createSocket('udp4');
-    socket.bind(0, () => {
-      const port = socket.address().port;
-      socket.close(() => resolve(port));
-    });
-    socket.on('error', reject);
+    const sockets = [];
+    const ports = [];
+
+    const closeAll = (callback) => {
+      let remaining = sockets.length;
+      if (remaining === 0) {
+        callback();
+        return;
+      }
+      for (const socket of sockets) {
+        socket.close(() => {
+          remaining -= 1;
+          if (remaining === 0) {
+            callback();
+          }
+        });
+      }
+    };
+
+    const bindNext = () => {
+      if (ports.length === count) {
+        closeAll(() => resolve(ports));
+        return;
+      }
+
+      const socket = dgram.createSocket('udp4');
+      sockets.push(socket);
+      socket.once('error', (err) => {
+        closeAll(() => reject(err));
+      });
+      socket.bind(0, () => {
+        ports.push(socket.address().port);
+        bindNext();
+      });
+    };
+
+    bindNext();
   });
 }
 
@@ -178,6 +209,8 @@ class RecordingManager {
 
     const audioProducer = producers.find((p) => p.kind === 'audio');
     const videoProducer = producers.find((p) => p.kind === 'video');
+    const ffmpegPorts = await getFreePorts((audioProducer ? 2 : 0) + (videoProducer ? 2 : 0));
+    const nextFfmpegPort = () => ffmpegPorts.shift();
 
     let audioTransportInfo = null;
     let videoTransportInfo = null;
@@ -192,14 +225,14 @@ class RecordingManager {
         paused: false,
       });
 
-      const ffmpegAudioPort = await getFreePort();
-      const ffmpegAudioRtcpPort = await getFreePort();
+      const ffmpegAudioPort = nextFfmpegPort();
+      const ffmpegAudioRtcpPort = nextFfmpegPort();
       await transport.connect({ ip: '127.0.0.1', port: ffmpegAudioPort, rtcpPort: ffmpegAudioRtcpPort });
 
       audioTransportInfo = {
         ip: plainTransport.ip,
         port: ffmpegAudioPort,
-        rtcpPort: plainTransport.rtcpPort,
+        rtcpPort: ffmpegAudioRtcpPort,
         payloadType: consumer.rtpParameters.codecs[0].payloadType,
         clockRate: consumer.rtpParameters.codecs[0].clockRate,
         channels: consumer.rtpParameters.codecs[0].channels || 2,
@@ -219,14 +252,14 @@ class RecordingManager {
         paused: false,
       });
 
-      const ffmpegVideoPort = await getFreePort();
-      const ffmpegVideoRtcpPort = await getFreePort();
+      const ffmpegVideoPort = nextFfmpegPort();
+      const ffmpegVideoRtcpPort = nextFfmpegPort();
       await transport.connect({ ip: '127.0.0.1', port: ffmpegVideoPort, rtcpPort: ffmpegVideoRtcpPort });
 
       videoTransportInfo = {
         ip: plainTransport.ip,
         port: ffmpegVideoPort,
-        rtcpPort: plainTransport.rtcpPort,
+        rtcpPort: ffmpegVideoRtcpPort,
         payloadType: consumer.rtpParameters.codecs[0].payloadType,
         clockRate: consumer.rtpParameters.codecs[0].clockRate,
       };
@@ -529,12 +562,14 @@ class RecordingManager {
 
     if (audio) {
       sdp += `m=audio ${audio.port} RTP/AVP ${audio.payloadType}\n`;
+      sdp += `a=rtcp:${audio.rtcpPort} IN IP4 127.0.0.1\n`;
       sdp += `a=rtpmap:${audio.payloadType} opus/${audio.clockRate}/${audio.channels}\n`;
       sdp += `a=fmtp:${audio.payloadType} minptime=10;useinbandfec=1\n`;
     }
 
     if (video) {
       sdp += `m=video ${video.port} RTP/AVP ${video.payloadType}\n`;
+      sdp += `a=rtcp:${video.rtcpPort} IN IP4 127.0.0.1\n`;
       sdp += `a=rtpmap:${video.payloadType} VP8/${video.clockRate}\n`;
     }
 

@@ -3,6 +3,7 @@ package io.internview.interview_service.web;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,6 +49,9 @@ public class MediaController {
 
 	private final MediaServiceClient mediaServiceClient;
 	private final InterviewSessionRepository sessionRepository;
+
+	@Value("${internview.media.announced-ip:}")
+	private String configuredAnnouncedIp;
 
 	// ── Router Capabilities ──────────────────────────
 
@@ -237,6 +241,10 @@ public class MediaController {
 	}
 
 	private String clientAnnouncedIp(Map<String, Object> body, HttpServletRequest request) {
+		String configured = cleanHost(this.configuredAnnouncedIp);
+		if (configured != null) {
+			return configured;
+		}
 		if (body != null) {
 			Object value = body.get("announcedIp");
 			if (value instanceof String announcedIp && !announcedIp.isBlank()) {

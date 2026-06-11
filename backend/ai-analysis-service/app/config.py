@@ -17,6 +17,8 @@ class Settings:
     enable_kafka_consumer: bool = os.getenv("ENABLE_KAFKA_CONSUMER", "false").lower() == "true"
     whisper_model: str = os.getenv("WHISPER_MODEL", "small")
     whisper_language: str = os.getenv("WHISPER_LANGUAGE", "tr")
+    whisper_backend: str = os.getenv("WHISPER_BACKEND", "openai")
+    whisper_cpp_server_url: str | None = os.getenv("WHISPER_CPP_SERVER_URL")
     preload_whisper_model: bool = os.getenv("PRELOAD_WHISPER_MODEL", "true").lower() == "true"
     whisper_download_root: str | None = os.getenv("WHISPER_DOWNLOAD_ROOT")
     work_dir: str = os.getenv("AI_ANALYSIS_WORK_DIR", "/tmp/internview-ai-analysis")

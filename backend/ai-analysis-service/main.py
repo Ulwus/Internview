@@ -13,7 +13,7 @@ from app.schemas import AnalyzeRequest, AnalyzeResponse
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_database()
-    if settings.preload_whisper_model:
+    if settings.preload_whisper_model and not settings.whisper_cpp_server_url:
         whisper_model()
     kafka_bus.start_consumer(handle_kafka_event)
     yield

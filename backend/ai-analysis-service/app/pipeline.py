@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 import logging
+import re
+import subprocess
 from typing import Any
 
-import whisper
+import httpx
 
 from app.config import settings
 from app.database import rebuild_session_analysis_from_segments, save_analysis, save_segment_analysis
@@ -14,13 +16,55 @@ from app.metrics import calculate_speech_metrics
 from app.schemas import AnalyzeRequest, AnalyzeResponse, InterviewCompletedPayload, RecordingSegmentPayload
 from app.storage import cleanup_files, download_recording, extract_audio
 
+SILENT_AUDIO_MAX_VOLUME_DB = -55.0
+
 
 @lru_cache(maxsize=1)
 def whisper_model():
+    try:
+        import whisper
+    except ImportError as exc:
+        raise RuntimeError(
+            "openai-whisper is not installed. Set WHISPER_CPP_SERVER_URL to use whisper-cpp-service, "
+            "or add openai-whisper back to requirements.txt for local Python Whisper fallback."
+        ) from exc
+
     return whisper.load_model(settings.whisper_model, download_root=settings.whisper_download_root)
 
 
+def audio_is_effectively_silent(audio_path: str) -> bool:
+    command = ["ffmpeg", "-hide_banner", "-i", audio_path, "-af", "volumedetect", "-f", "null", "-"]
+    try:
+        result = subprocess.run(command, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except OSError as exc:
+        logging.warning("Audio silence check failed for %s: %s", audio_path, exc)
+        return False
+
+    match = re.search(r"max_volume:\s*(-?\d+(?:\.\d+)?) dB", result.stderr)
+    if not match:
+        return False
+
+    max_volume = float(match.group(1))
+    if max_volume <= SILENT_AUDIO_MAX_VOLUME_DB:
+        logging.info("Skipping transcription for silent audio %s: max_volume=%.1f dB", audio_path, max_volume)
+        return True
+
+    return False
+
+
 def transcribe_audio(audio_path: str) -> dict[str, Any]:
+    if settings.whisper_cpp_server_url:
+        response = httpx.post(
+            f"{settings.whisper_cpp_server_url.rstrip('/')}/transcribe",
+            json={
+                "audio_path": audio_path,
+                "language": settings.whisper_language,
+            },
+            timeout=600,
+        )
+        response.raise_for_status()
+        return response.json()
+
     return whisper_model().transcribe(
         audio_path,
         fp16=False,
@@ -44,6 +88,9 @@ def clean_transcription(result: dict[str, Any]) -> tuple[str, list[dict[str, Any
         no_speech_prob = float(segment.get("no_speech_prob") or 0)
         avg_logprob = float(segment.get("avg_logprob") or 0)
         text = str(segment.get("text") or "").strip()
+        duration = float(segment.get("end") or 0) - float(segment.get("start") or 0)
+        if duration < 0.5 and len(text) > 20:
+            continue
         if text and no_speech_prob < 0.75 and avg_logprob > -2.0:
             cleaned_segments.append(segment)
 
@@ -59,7 +106,7 @@ def analyze_request(request: AnalyzeRequest) -> AnalyzeResponse:
     video_path = download_recording(request.recorded_video_url, str(request.session_id))
     audio_path = extract_audio(video_path, str(request.session_id))
     try:
-        result = transcribe_audio(str(audio_path))
+        result = {"text": "", "segments": []} if audio_is_effectively_silent(str(audio_path)) else transcribe_audio(str(audio_path))
         transcript, segments = clean_transcription(result)
         analysis = calculate_speech_metrics(transcript, segments, request.duration_seconds)
         analysis["ai_evaluation"] = evaluate_interview(transcript, analysis)
@@ -71,6 +118,10 @@ def analyze_request(request: AnalyzeRequest) -> AnalyzeResponse:
 
 
 def analyze_interview_completed(payload: InterviewCompletedPayload) -> AnalyzeResponse:
+    if not payload.recorded_video_url or payload.recorded_video_url == "." or payload.recorded_video_url.lower() == "none":
+        rebuild_session_analysis_from_segments(payload.session_id)
+        return AnalyzeResponse(session_id=payload.session_id, transcript="", analysis={})
+
     if payload.recorded_video_url.endswith("/manifest.json"):
         rebuild_session_analysis_from_segments(payload.session_id)
         return AnalyzeResponse(session_id=payload.session_id, transcript="", analysis={})
@@ -95,7 +146,7 @@ def analyze_recording_segment(payload: RecordingSegmentPayload) -> AnalyzeRespon
     video_path = download_recording(request.recorded_video_url, segment_file_id)
     audio_path = extract_audio(video_path, segment_file_id)
     try:
-        result = transcribe_audio(str(audio_path))
+        result = {"text": "", "segments": []} if audio_is_effectively_silent(str(audio_path)) else transcribe_audio(str(audio_path))
         transcript, segments = clean_transcription(result)
         analysis = calculate_speech_metrics(transcript, segments, request.duration_seconds)
         save_segment_analysis(
@@ -107,7 +158,7 @@ def analyze_recording_segment(payload: RecordingSegmentPayload) -> AnalyzeRespon
             analysis,
             payload.recorded_video_url,
         )
-        rebuild_session_analysis_from_segments(payload.session_id)
+        rebuild_session_analysis_from_segments(payload.session_id, evaluate_ai=False)
         return AnalyzeResponse(session_id=payload.session_id, transcript=transcript, analysis=analysis)
     finally:
         cleanup_files(video_path, audio_path)
