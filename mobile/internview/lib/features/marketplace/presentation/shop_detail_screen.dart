@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/models/booking_models.dart';
 import '../../../core/models/page_response.dart';
@@ -14,6 +12,7 @@ import '../../../core/presentation/widgets/penkrowd/penkrowd_card.dart';
 import '../../../core/presentation/widgets/penkrowd/radial_stat_gauge.dart';
 import '../../../core/presentation/widgets/penkrowd/skeleton_container.dart';
 import '../../booking/data/booking_remote_data_source.dart';
+import '../../booking/presentation/booking_slot_picker.dart';
 import '../data/marketplace_remote_data_source.dart';
 
 final _shopDetailProvider = FutureProvider.family
@@ -80,15 +79,6 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
             final openSlots = (slotsAsync.valueOrNull ?? const <SlotDto>[])
                 .where((s) => !s.booked)
                 .toList();
-            final openSlotsByDay = <DateTime, List<SlotDto>>{};
-            for (final s in openSlots) {
-              final st = s.startTime.toLocal();
-              final k = DateTime(st.year, st.month, st.day);
-              (openSlotsByDay[k] ??= []).add(s);
-            }
-            for (final list in openSlotsByDay.values) {
-              list.sort((a, b) => a.startTime.compareTo(b.startTime));
-            }
 
             final name = shop.expertFullName;
             final industry = shop.industry?.name;
@@ -211,132 +201,33 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFD600),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.black, width: 3),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black,
-                        blurRadius: 0,
-                        offset: Offset(4, 4),
-                      ),
-                    ],
+                slotsAsync.when(
+                  loading: () => const SkeletonContainer(
+                    width: double.infinity,
+                    height: 260,
+                    borderRadius: 18,
                   ),
-                  child: slotsAsync.when(
-                    loading: () => const SkeletonContainer(
-                      width: double.infinity,
-                      height: 14,
-                      borderRadius: 8,
-                    ),
-                    error: (e, _) => Text('$e'),
-                    data: (_) => TableCalendar(
-                      firstDay: DateTime.now().subtract(
-                        const Duration(days: 1),
-                      ),
-                      lastDay: DateTime.now().add(const Duration(days: 45)),
-                      focusedDay: _focusedDay,
-                      enabledDayPredicate: (day) {
-                        final k = DateTime(day.year, day.month, day.day);
-                        return openSlotsByDay.containsKey(k);
-                      },
-                      selectedDayPredicate: (day) =>
-                          isSameDay(_selectedDay, day),
-                      onDaySelected: (selectedDay, focusedDay) {
-                        setState(() {
-                          _selectedDay = selectedDay;
-                          _focusedDay = focusedDay;
-                          _selectedSlot = null;
-                        });
-                      },
-                      headerStyle: const HeaderStyle(
-                        formatButtonVisible: false,
-                        titleCentered: true,
-                        titleTextStyle: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      calendarStyle: const CalendarStyle(
-                        selectedDecoration: BoxDecoration(
-                          color: Colors.black,
-                          shape: BoxShape.circle,
-                        ),
-                        todayDecoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.fromBorderSide(
-                            BorderSide(color: Colors.black, width: 2),
-                          ),
-                        ),
-                        todayTextStyle: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                  error: (e, _) => Text('$e'),
+                  data: (_) => BookingSlotPicker(
+                    slots: openSlots,
+                    loading: false,
+                    focusedDay: _focusedDay,
+                    selectedDay: _selectedDay,
+                    selectedSlot: _selectedSlot,
+                    onPageChanged: (day) => setState(() => _focusedDay = day),
+                    onDaySelected: (selectedDay, focusedDay) {
+                      setState(() {
+                        _selectedDay = selectedDay;
+                        _focusedDay = focusedDay;
+                        _selectedSlot = null;
+                      });
+                    },
+                    onSlotSelected: (slot) =>
+                        setState(() => _selectedSlot = slot),
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (_selectedDay != null) ...[
-                  Builder(
-                    builder: (context) {
-                      final k = DateTime(
-                        _selectedDay!.year,
-                        _selectedDay!.month,
-                        _selectedDay!.day,
-                      );
-                      final daySlots = openSlotsByDay[k] ?? const <SlotDto>[];
-                      if (daySlots.isEmpty)
-                        return const Text('Bu gün için uygun slot yok.');
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 8,
-                              mainAxisSpacing: 8,
-                              childAspectRatio: 3.2,
-                            ),
-                        itemCount: daySlots.length,
-                        itemBuilder: (context, index) {
-                          final s = daySlots[index];
-                          final isSelected = _selectedSlot?.id == s.id;
-                          final st = s.startTime.toLocal();
-                          final label = DateFormat('HH:mm', 'tr_TR').format(st);
-                          return GestureDetector(
-                            onTap: () => setState(() => _selectedSlot = s),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.black
-                                    : const Color(0xFFFF5252),
-                                border: Border.all(
-                                  color: Colors.black,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                label,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : Colors.black,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                if (_selectedDay != null || _selectedSlot != null) ...[
                   AnimatedActionButton(
                     onTap: () async {
                       if (_selectedSlot == null) {
@@ -405,8 +296,9 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
                   ),
                   error: (e, _) => Text('$e'),
                   data: (page) {
-                    if (page.items.isEmpty)
+                    if (page.items.isEmpty) {
                       return const Text('Henüz yorum yok.');
+                    }
                     return Column(
                       children: [
                         for (final r in page.items)

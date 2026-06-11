@@ -99,9 +99,10 @@ class KafkaBus:
                 elif event_type == "RECORDING_SEGMENT_UPLOADED":
                     event = RecordingSegmentUploadedEvent.model_validate(message.value)
                     handler("recording_segment", event.payload)
-                consumer.commit()
             except Exception:
-                logger.exception("InterviewCompletedEvent işlenemedi")
+                logger.exception("Kafka event işlenemedi, atlanıyor")
+            finally:
+                consumer.commit()
 
 
 kafka_bus = KafkaBus()

@@ -139,4 +139,13 @@ class SessionRemoteDataSource {
       '/interviews/sessions/$sessionId/media/consumer/$consumerId/resume',
     );
   }
+
+  Future<AnalysisReport> getAnalysisReport(String sessionId) async {
+    final r = await _dio.get<Map<String, dynamic>>(
+      '/interviews/$sessionId/report',
+    );
+    final data = r.data;
+    if (data == null) throw StateError('Boş analiz raporu yanıtı');
+    return AnalysisReport.fromJson(data);
+  }
 }

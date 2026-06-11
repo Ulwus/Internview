@@ -26,6 +26,7 @@ class WebRtcEngine {
 
   final Set<String> _localProducerIds = {};
   final Set<String> _consumedProducerIds = {};
+  final Set<String> _consumingProducerIds = {};
   final List<Producer> _producers = [];
   final List<Consumer> _consumers = [];
   final _remoteCtrl = StreamController<MediaStream>.broadcast();
@@ -177,27 +178,33 @@ class WebRtcEngine {
     final producers = await api.listMediaProducers(sessionId);
     for (final producer in producers) {
       if (_localProducerIds.contains(producer.id) ||
-          _consumedProducerIds.contains(producer.id)) {
+          _consumedProducerIds.contains(producer.id) ||
+          _consumingProducerIds.contains(producer.id)) {
         continue;
       }
       if (producer.kind != 'audio' && producer.kind != 'video') {
         continue;
       }
 
-      final consumeInfo = await api.consumeMedia(
-        sessionId: sessionId,
-        transportId: recvTransport.id,
-        producerId: producer.id,
-        rtpCapabilities: device.rtpCapabilities.toMap(),
-      );
-      _consumedProducerIds.add(producer.id);
-      recvTransport.consume(
-        id: consumeInfo.id,
-        producerId: consumeInfo.producerId,
-        peerId: consumeInfo.producerId,
-        kind: RTCRtpMediaTypeExtension.fromString(consumeInfo.kind),
-        rtpParameters: RtpParameters.fromMap(consumeInfo.rtpParameters),
-      );
+      _consumingProducerIds.add(producer.id);
+      try {
+        final consumeInfo = await api.consumeMedia(
+          sessionId: sessionId,
+          transportId: recvTransport.id,
+          producerId: producer.id,
+          rtpCapabilities: device.rtpCapabilities.toMap(),
+        );
+        _consumedProducerIds.add(producer.id);
+        recvTransport.consume(
+          id: consumeInfo.id,
+          producerId: consumeInfo.producerId,
+          peerId: consumeInfo.producerId,
+          kind: RTCRtpMediaTypeExtension.fromString(consumeInfo.kind),
+          rtpParameters: RtpParameters.fromMap(consumeInfo.rtpParameters),
+        );
+      } finally {
+        _consumingProducerIds.remove(producer.id);
+      }
     }
   }
 
@@ -254,6 +261,7 @@ class WebRtcEngine {
     _producers.clear();
     _localProducerIds.clear();
     _consumedProducerIds.clear();
+    _consumingProducerIds.clear();
     await _sendTransport?.close();
     await _recvTransport?.close();
     _sendTransport = null;

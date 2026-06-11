@@ -29,6 +29,7 @@ public class SecurityConfig {
 		http.authorizeHttpRequests(auth -> auth
 			.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 			.requestMatchers("/ws/signaling/**").permitAll()
+			.requestMatchers("/sessions/booking/*/expert-joined").permitAll()
 			.anyRequest().authenticated());
 		http.oauth2ResourceServer(oauth2 -> oauth2
 			.jwt(jwt -> jwt.decoder(this.jwtDecoder).jwtAuthenticationConverter(this.jwtAuthenticationConverter)));

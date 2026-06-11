@@ -311,6 +311,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                 final price = (s.hourlyRate != null)
                     ? '${s.hourlyRate} ${s.currency ?? ''}'
                     : null;
+                final skills = s.skills.take(3).map((e) => e.name).toList();
                 final meta = [
                   if (industry != null && industry.isNotEmpty) industry,
                   if (price != null && price.trim().isNotEmpty) price,
@@ -348,13 +349,56 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
-                    subtitle: meta.isEmpty
-                        ? null
-                        : Text(
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (meta.isNotEmpty)
+                          Text(
                             meta,
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                           ),
+                        if ((s.description ?? '').trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            s.description!.trim(),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                        ],
+                        if (skills.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final skill in skills)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: Colors.black,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    skill,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
                     trailing: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [

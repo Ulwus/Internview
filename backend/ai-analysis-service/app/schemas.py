@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AnalyzeRequest(BaseModel):
@@ -25,14 +25,22 @@ class InterviewCompletedPayload(BaseModel):
     candidate_id: UUID
     expert_id: UUID
     duration_seconds: float | None = None
-    recorded_video_url: str
+    recorded_video_url: str | None = None
 
 
 class InterviewCompletedEvent(BaseModel):
     event_type: str
     event_id: str
-    timestamp: str
+    timestamp: str | float
     payload: InterviewCompletedPayload
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def _coerce_timestamp(cls, v):
+        if isinstance(v, (int, float)):
+            from datetime import datetime, timezone
+            return datetime.fromtimestamp(v, tz=timezone.utc).isoformat()
+        return v
 
 
 class RecordingSegmentPayload(BaseModel):

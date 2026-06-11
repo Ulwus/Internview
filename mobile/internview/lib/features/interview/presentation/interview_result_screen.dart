@@ -5,18 +5,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/models/booking_models.dart';
+import '../../../core/models/session_models.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/presentation/widgets/neo/neo_background.dart';
 import '../../../core/presentation/widgets/penkrowd/action_group.dart';
+import '../../../core/presentation/widgets/penkrowd/radial_stat_gauge.dart';
 import '../../../core/presentation/widgets/penkrowd/section_card.dart';
 import '../../../core/presentation/widgets/penkrowd/skeleton_container.dart';
 import '../../auth/controllers/auth_controller.dart';
 import '../../booking/data/booking_remote_data_source.dart';
 import '../../booking/presentation/booking_ui_helpers.dart';
+import '../data/session_remote_data_source.dart';
 
 final _resultBookingProvider = FutureProvider.family
     .autoDispose<BookingDto, String>((ref, bookingId) {
       return ref.watch(bookingRemoteProvider).getBooking(bookingId);
+    });
+
+final _analysisReportProvider = FutureProvider.family
+    .autoDispose<AnalysisReport, String>((ref, bookingId) async {
+      final session = await ref
+          .watch(sessionRemoteProvider)
+          .getSessionByBooking(bookingId);
+      return ref
+          .watch(sessionRemoteProvider)
+          .getAnalysisReport(session.sessionId);
     });
 
 class InterviewResultScreen extends ConsumerStatefulWidget {
@@ -122,6 +135,7 @@ class _InterviewResultScreenState extends ConsumerState<InterviewResultScreen> {
     final isExpert = auth?.role.toUpperCase() == 'EXPERT';
 
     final bookingAsync = ref.watch(_resultBookingProvider(widget.bookingId));
+    final reportAsync = ref.watch(_analysisReportProvider(widget.bookingId));
 
     return NeoBackground(
       child: Scaffold(
@@ -347,11 +361,22 @@ class _InterviewResultScreenState extends ConsumerState<InterviewResultScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                const SectionCard(
+                SectionCard(
                   title: 'AI Yorumu',
-                  subtitle: 'Yakında',
-                  color: Color(0xFFB388FF),
-                  child: Text('Yakında: AI analizi daha sonra eklenecek.'),
+                  subtitle: 'Yapay zeka mülakat değerlendirmesi',
+                  color: const Color(0xFFB388FF),
+                  child: reportAsync.when(
+                    loading: () => const SkeletonContainer(
+                      width: double.infinity,
+                      height: 70,
+                      borderRadius: 12,
+                    ),
+                    error: (error, stackTrace) => const Text(
+                      'AI analizi henüz hazır değil.',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    data: (report) => _AiReview(report: report),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 ActionGroup(
@@ -366,6 +391,133 @@ class _InterviewResultScreenState extends ConsumerState<InterviewResultScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _AiReview extends StatelessWidget {
+  const _AiReview({required this.report});
+
+  final AnalysisReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final evaluation = report.aiEvaluation;
+    if (evaluation == null) {
+      return const Text(
+        'AI değerlendirmesi henüz oluşmadı.',
+        style: TextStyle(fontWeight: FontWeight.w800),
+      );
+    }
+
+    final score = evaluation.score?.clamp(1, 10).toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black, width: 2),
+          ),
+          child: Row(
+            children: [
+              RadialStatGauge(
+                value: score,
+                max: 10,
+                label: 'AI Puan',
+                size: 82,
+                accentColor: const Color(0xFFB388FF),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      score == null
+                          ? '-/10'
+                          : '${score.toStringAsFixed(score >= 10 ? 0 : 1)}/10',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      evaluation.reason.trim().isEmpty
+                          ? 'AI değerlendirmesi oluşturuldu.'
+                          : evaluation.reason.trim(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (evaluation.strengths.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _AiBulletBlock(
+            title: 'Güçlü yanlar',
+            color: const Color(0xFF00E5FF),
+            items: evaluation.strengths,
+          ),
+        ],
+        if (evaluation.improvements.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _AiBulletBlock(
+            title: 'Gelişim önerileri',
+            color: const Color(0xFFFFD600),
+            items: evaluation.improvements,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AiBulletBlock extends StatelessWidget {
+  const _AiBulletBlock({
+    required this.title,
+    required this.color,
+    required this.items,
+  });
+
+  final String title;
+  final Color color;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '• $item',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+        ],
       ),
     );
   }

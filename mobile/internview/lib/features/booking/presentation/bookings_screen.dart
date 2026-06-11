@@ -26,7 +26,10 @@ final _profileRemoteDsProvider = Provider<ProfileRemoteDataSource>(
   (ref) => ProfileRemoteDataSource(ref.watch(dioProvider)),
 );
 
-final _expertByUserIdProvider = FutureProvider.family((ref, String userId) async {
+final _expertByUserIdProvider = FutureProvider.family((
+  ref,
+  String userId,
+) async {
   return ref.read(_expertRemoteDsProvider).getExpertByUserId(userId);
 });
 
@@ -46,7 +49,8 @@ class BookingsScreen extends ConsumerStatefulWidget {
 
 enum _BookingsTab { pending, upcoming, past }
 
-class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBindingObserver {
+class _BookingsScreenState extends ConsumerState<BookingsScreen>
+    with WidgetsBindingObserver {
   final List<BookingDto> _items = [];
   int _page = 0;
   bool _loading = false;
@@ -107,8 +111,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
     setState(() => _loading = true);
     try {
       final res = widget.asExpert
-          ? await ref.read(bookingRemoteProvider).listExpertBookings(page: _page)
-          : await ref.read(bookingRemoteProvider).listCandidateBookings(page: _page);
+          ? await ref
+                .read(bookingRemoteProvider)
+                .listExpertBookings(page: _page)
+          : await ref
+                .read(bookingRemoteProvider)
+                .listCandidateBookings(page: _page);
       if (!mounted) return;
       setState(() {
         _items.addAll(res.items);
@@ -117,7 +125,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
       });
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -143,11 +153,13 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
           case _BookingsTab.pending:
             return b.status == BookingStatus.pending;
           case _BookingsTab.upcoming:
-            return b.status == BookingStatus.confirmed && b.scheduledEnd.toLocal().isAfter(now);
+            return b.status == BookingStatus.confirmed &&
+                b.scheduledEnd.toLocal().isAfter(now);
           case _BookingsTab.past:
             return b.status == BookingStatus.completed ||
                 b.status == BookingStatus.cancelled ||
-                (b.status == BookingStatus.confirmed && b.scheduledEnd.toLocal().isBefore(now));
+                (b.status == BookingStatus.confirmed &&
+                    b.scheduledEnd.toLocal().isBefore(now));
         }
       }).toList();
     }
@@ -186,7 +198,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                 onRefresh: () => _load(refresh: true),
                 child: NotificationListener<ScrollNotification>(
                   onNotification: (n) {
-                    if (_tab != _BookingsTab.past && n.metrics.pixels > n.metrics.maxScrollExtent - 200) _load();
+                    if (_tab != _BookingsTab.past &&
+                        n.metrics.pixels > n.metrics.maxScrollExtent - 200) {
+                      _load();
+                    }
                     return false;
                   },
                   child: Builder(
@@ -198,7 +213,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                           children: const [
                             SectionCard(
                               title: 'Henüz randevu yok',
-                              subtitle: 'Pazar Yerinden bir uzman seçip randevu talebi gönderebilirsin.',
+                              subtitle:
+                                  'Pazar Yerinden bir uzman seçip randevu talebi gönderebilirsin.',
                               color: Color(0xFFFFD600),
                               child: SizedBox.shrink(),
                             ),
@@ -211,13 +227,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                           if (i >= v.length) {
                             return const Padding(
                               padding: EdgeInsets.all(16),
-                              child: Center(child: SkeletonContainer(width: 140, height: 14, borderRadius: 8)),
+                              child: Center(
+                                child: SkeletonContainer(
+                                  width: 140,
+                                  height: 14,
+                                  borderRadius: 8,
+                                ),
+                              ),
                             );
                           }
                           final b = v[i];
-                          final canJoin = joinWindowAllowed(b) && b.status == BookingStatus.confirmed;
+                          final canJoin =
+                              joinWindowAllowed(b) &&
+                              b.status == BookingStatus.confirmed;
                           final isPending = b.status == BookingStatus.pending;
-                          final hasTrailing = (widget.asExpert && isPending) || canJoin;
+                          final hasTrailing =
+                              (widget.asExpert && isPending) || canJoin;
                           final accent = switch (b.status) {
                             BookingStatus.pending => const Color(0xFFFF9100),
                             BookingStatus.confirmed => const Color(0xFF00E5FF),
@@ -229,15 +254,26 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                               ? ref.watch(_userByIdProvider(b.candidateId))
                               : ref.watch(_expertByUserIdProvider(b.expertId));
 
-                          Widget avatarFromProfile({required String? avatarUrl, required String fallbackLetter}) {
+                          Widget avatarFromProfile({
+                            required String? avatarUrl,
+                            required String fallbackLetter,
+                          }) {
                             return CircleAvatar(
                               radius: 18,
                               backgroundColor: Colors.white,
-                              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                              backgroundImage:
+                                  (avatarUrl != null && avatarUrl.isNotEmpty)
+                                  ? NetworkImage(avatarUrl)
+                                  : null,
                               child: (avatarUrl == null || avatarUrl.isEmpty)
                                   ? Text(
-                                      fallbackLetter.isNotEmpty ? fallbackLetter[0].toUpperCase() : '?',
-                                      style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.black),
+                                      fallbackLetter.isNotEmpty
+                                          ? fallbackLetter[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.black,
+                                      ),
                                     )
                                   : null,
                             );
@@ -252,20 +288,34 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                   if (d is ExpertDetail) {
                                     return avatarFromProfile(
                                       avatarUrl: d.avatarUrl,
-                                      fallbackLetter: d.firstName.isNotEmpty ? d.firstName : '?',
+                                      fallbackLetter: d.firstName.isNotEmpty
+                                          ? d.firstName
+                                          : '?',
                                     );
                                   }
                                   final p = d as UserProfile;
                                   return avatarFromProfile(
                                     avatarUrl: p.avatarUrl,
-                                    fallbackLetter: p.firstName.isNotEmpty ? p.firstName : '?',
+                                    fallbackLetter: p.firstName.isNotEmpty
+                                        ? p.firstName
+                                        : '?',
                                   );
                                 },
-                                loading: () => const SkeletonContainer(width: 36, height: 36, borderRadius: 18),
+                                loading: () => const SkeletonContainer(
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 18,
+                                ),
                                 error: (e, _) => const CircleAvatar(
                                   radius: 18,
                                   backgroundColor: Colors.white,
-                                  child: Text('?', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black)),
+                                  child: Text(
+                                    '?',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.black,
+                                    ),
+                                  ),
                                 ),
                               ),
                               title: Column(
@@ -291,7 +341,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                             );
                                           },
                                           loading: () =>
-                                              const SkeletonContainer(width: 140, height: 12, borderRadius: 8),
+                                              const SkeletonContainer(
+                                                width: 140,
+                                                height: 12,
+                                                borderRadius: 8,
+                                              ),
                                           error: (e, _) => Text(
                                             joinCtaLabel(b),
                                             overflow: TextOverflow.ellipsis,
@@ -306,7 +360,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                           style: TextStyle(
                                             fontWeight: FontWeight.w900,
                                             fontSize: 11,
-                                            color: Colors.black.withValues(alpha: 0.65),
+                                            color: Colors.black.withValues(
+                                              alpha: 0.65,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -317,22 +373,59 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                     formatBookingWhen(b),
                                     overflow: TextOverflow.ellipsis,
                                     maxLines: 1,
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
+                                  if (b.status == BookingStatus.confirmed &&
+                                      canJoin) ...[
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: canJoin
+                                            ? const Color(0xFF00E5FF)
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        border: Border.all(
+                                          color: Colors.black,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Oda açık',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 11,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   if (!widget.asExpert)
                                     otherAsync.when(
                                       data: (d) {
                                         final e = d as ExpertDetail;
-                                        return (e.industry?.name != null && e.industry!.name.isNotEmpty)
+                                        return (e.industry?.name != null &&
+                                                e.industry!.name.isNotEmpty)
                                             ? Padding(
-                                                padding: const EdgeInsets.only(top: 4),
+                                                padding: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
                                                 child: Text(
                                                   e.industry!.name,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                   maxLines: 1,
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.w800,
-                                                    color: Colors.black.withValues(alpha: 0.7),
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.7),
                                                   ),
                                                 ),
                                               )
@@ -344,7 +437,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                 ],
                               ),
                               onTap: () => context.push(
-                                b.status == BookingStatus.completed ? '/interview/${b.id}/result' : '/booking/${b.id}',
+                                b.status == BookingStatus.completed
+                                    ? '/interview/${b.id}/result'
+                                    : '/booking/${b.id}',
                               ),
                               trailing: widget.asExpert && isPending
                                   ? Row(
@@ -353,12 +448,19 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                         AnimatedActionButton(
                                           onTap: () async {
                                             try {
-                                              await ref.read(bookingRemoteProvider).rejectBooking(b.id);
+                                              await ref
+                                                  .read(bookingRemoteProvider)
+                                                  .rejectBooking(b.id);
                                               if (mounted) _load(refresh: true);
                                             } on ApiException catch (e) {
                                               if (context.mounted) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(SnackBar(content: Text(e.message)));
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(e.message),
+                                                  ),
+                                                );
                                               }
                                             }
                                           },
@@ -385,12 +487,19 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                         AnimatedActionButton(
                                           onTap: () async {
                                             try {
-                                              await ref.read(bookingRemoteProvider).approveBooking(b.id);
+                                              await ref
+                                                  .read(bookingRemoteProvider)
+                                                  .approveBooking(b.id);
                                               if (mounted) _load(refresh: true);
                                             } on ApiException catch (e) {
                                               if (context.mounted) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(SnackBar(content: Text(e.message)));
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(e.message),
+                                                  ),
+                                                );
                                               }
                                             }
                                           },
@@ -416,28 +525,29 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> with WidgetsBin
                                       ],
                                     )
                                   : (canJoin)
-                                      ? AnimatedActionButton(
-                                          onTap: () => context.push('/interview/${b.id}'),
-                                          width: 72,
-                                          height: 40,
-                                          color: const Color(0xFF00E5FF),
-                                          pressedColor: const Color(0xFF00E5FF),
-                                          borderColor: Colors.black,
-                                          borderWidth: 3,
-                                          borderRadius: 14,
-                                          shadowOffset: const Offset(4, 4),
-                                          child: const Center(
-                                            child: Text(
-                                              'Katıl',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 12,
-                                                color: Colors.black,
-                                              ),
-                                            ),
+                                  ? AnimatedActionButton(
+                                      onTap: () =>
+                                          context.push('/interview/${b.id}'),
+                                      width: 72,
+                                      height: 40,
+                                      color: const Color(0xFF00E5FF),
+                                      pressedColor: const Color(0xFF00E5FF),
+                                      borderColor: Colors.black,
+                                      borderWidth: 3,
+                                      borderRadius: 14,
+                                      shadowOffset: const Offset(4, 4),
+                                      child: const Center(
+                                        child: Text(
+                                          'Katıl',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 12,
+                                            color: Colors.black,
                                           ),
-                                        )
-                                      : null,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
                             ),
                           );
                         },

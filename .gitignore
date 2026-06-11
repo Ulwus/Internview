@@ -27,6 +27,7 @@ logs/
 
 # Docker runtime volumes
 infrastructure/postgres/data/
+infrastructure/postgres/pgadmin/
 infrastructure/redis/data/
 infrastructure/kafka/data/
 infrastructure/consul/data/

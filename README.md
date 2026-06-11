@@ -74,11 +74,11 @@ cp .env.example .env
 ### 2. Tüm sistemi ayağa kaldır
 
 ```bash
-cd infrastructure
-docker compose up -d
+docker compose --env-file .env -f infrastructure/docker-compose.yml up -d
 ```
 
 Bu tek komut altyapı (PostgreSQL, Redis, Kafka, Consul, Coturn) ve tüm backend servislerini (Gateway, Auth, User, Booking, Interview) birlikte başlatır.
+Mediasoup, görüşmeye katılan client'ın bağlandığı host'u transport oluştururken otomatik kullanır; local geliştirmede IP değiştikçe `.env` güncellemen gerekmez.
 
 ### 3. Testleri çalıştır
 

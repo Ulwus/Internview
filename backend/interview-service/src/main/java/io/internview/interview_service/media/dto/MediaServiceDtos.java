@@ -67,6 +67,15 @@ public final class MediaServiceDtos {
 	@NoArgsConstructor
 	@AllArgsConstructor
 	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class CreateTransportRequest {
+		private String announcedIp;
+	}
+
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class CreateTransportResponse {
 		private String id;
 		private Object iceParameters;

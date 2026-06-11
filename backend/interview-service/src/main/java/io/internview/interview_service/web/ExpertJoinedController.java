@@ -21,7 +21,6 @@ public class ExpertJoinedController {
 	private final InterviewSessionRepository interviewSessionRepository;
 
 	@GetMapping("/booking/{bookingId}/expert-joined")
-	@PreAuthorize("isAuthenticated()")
 	public ResponseEntity<Map<String, Boolean>> expertJoined(@PathVariable UUID bookingId) {
 		return interviewSessionRepository.findByBookingId(bookingId)
 			.map(s -> ResponseEntity.ok(Map.of("expertJoined", s.getExpertJoinedAt() != null)))

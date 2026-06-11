@@ -93,7 +93,7 @@ export default function LandingPage() {
       </section>
 
       <section className="landing-data-grid">
-        <SectionCard title="Uygun uzmanlar" subtitle="/experts" action={<StatusChip>{experts.length}</StatusChip>}>
+        <SectionCard title="Uygun uzmanlar" subtitle="/marketplace" action={<StatusChip>{experts.length}</StatusChip>}>
           <div className="expert-list">
             {experts.map((expert) => (
               <DetailHeaderCard

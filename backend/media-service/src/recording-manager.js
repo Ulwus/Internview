@@ -11,6 +11,49 @@ const producerConsumerManager = require('./producer-consumer-manager');
 const s3Uploader = require('./s3-uploader');
 const kafkaPublisher = require('./kafka-publisher');
 const { v4: uuidv4 } = require('uuid');
+const dgram = require('dgram');
+
+async function getFreePorts(count) {
+  return new Promise((resolve, reject) => {
+    const sockets = [];
+    const ports = [];
+
+    const closeAll = (callback) => {
+      let remaining = sockets.length;
+      if (remaining === 0) {
+        callback();
+        return;
+      }
+      for (const socket of sockets) {
+        socket.close(() => {
+          remaining -= 1;
+          if (remaining === 0) {
+            callback();
+          }
+        });
+      }
+    };
+
+    const bindNext = () => {
+      if (ports.length === count) {
+        closeAll(() => resolve(ports));
+        return;
+      }
+
+      const socket = dgram.createSocket('udp4');
+      sockets.push(socket);
+      socket.once('error', (err) => {
+        closeAll(() => reject(err));
+      });
+      socket.bind(0, () => {
+        ports.push(socket.address().port);
+        bindNext();
+      });
+    };
+
+    bindNext();
+  });
+}
 
 /**
  * Server-side recording yönetimi.
@@ -157,13 +200,17 @@ class RecordingManager {
       segmentPattern,
       transports: [],
       consumers: [],
+      videoConsumers: [],
       uploadedSegments: new Set(),
       uploadedUrls: [],
       uploadTimer: null,
+      keyframeTimer: null,
     };
 
     const audioProducer = producers.find((p) => p.kind === 'audio');
     const videoProducer = producers.find((p) => p.kind === 'video');
+    const ffmpegPorts = await getFreePorts((audioProducer ? 2 : 0) + (videoProducer ? 2 : 0));
+    const nextFfmpegPort = () => ffmpegPorts.shift();
 
     let audioTransportInfo = null;
     let videoTransportInfo = null;
@@ -178,10 +225,14 @@ class RecordingManager {
         paused: false,
       });
 
+      const ffmpegAudioPort = nextFfmpegPort();
+      const ffmpegAudioRtcpPort = nextFfmpegPort();
+      await transport.connect({ ip: '127.0.0.1', port: ffmpegAudioPort, rtcpPort: ffmpegAudioRtcpPort });
+
       audioTransportInfo = {
         ip: plainTransport.ip,
-        port: plainTransport.port,
-        rtcpPort: plainTransport.rtcpPort,
+        port: ffmpegAudioPort,
+        rtcpPort: ffmpegAudioRtcpPort,
         payloadType: consumer.rtpParameters.codecs[0].payloadType,
         clockRate: consumer.rtpParameters.codecs[0].clockRate,
         channels: consumer.rtpParameters.codecs[0].channels || 2,
@@ -201,16 +252,21 @@ class RecordingManager {
         paused: false,
       });
 
+      const ffmpegVideoPort = nextFfmpegPort();
+      const ffmpegVideoRtcpPort = nextFfmpegPort();
+      await transport.connect({ ip: '127.0.0.1', port: ffmpegVideoPort, rtcpPort: ffmpegVideoRtcpPort });
+
       videoTransportInfo = {
         ip: plainTransport.ip,
-        port: plainTransport.port,
-        rtcpPort: plainTransport.rtcpPort,
+        port: ffmpegVideoPort,
+        rtcpPort: ffmpegVideoRtcpPort,
         payloadType: consumer.rtpParameters.codecs[0].payloadType,
         clockRate: consumer.rtpParameters.codecs[0].clockRate,
       };
 
       recordingState.transports.push(plainTransport.id);
       recordingState.consumers.push(consumer);
+      recordingState.videoConsumers.push(consumer);
     }
 
     // SDP dosyası oluştur
@@ -224,6 +280,8 @@ class RecordingManager {
     const ffmpegArgs = [
       '-protocol_whitelist', 'file,rtp,udp',
       '-fflags', '+genpts',
+      '-analyzeduration', '10000000',
+      '-probesize', '10000000',
       '-i', sdpFile,
       '-c', 'copy',
       '-flags', '+global_header',
@@ -235,37 +293,20 @@ class RecordingManager {
       segmentPattern,
     ];
 
-    logger.info(`FFmpeg başlatılıyor: ffmpeg ${ffmpegArgs.join(' ')}`);
+    // Consumer'ların RTP akışını hazırlaması için bekle.
+    // FFmpeg SDP'deki portlarda hemen RTP paketi göremezse exit code=1 ile çöker.
+    await this._waitForConsumers(2000);
 
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    ffmpegProcess.stderr.on('data', (data) => {
-      logger.debug(`FFmpeg [${roomId}]: ${data.toString().trim()}`);
-    });
-
-    ffmpegProcess.on('error', (err) => {
-      logger.error(`FFmpeg hata: ${roomId}`, { error: err.message });
-    });
-
-    ffmpegProcess.on('close', (code) => {
-      logger.info(`FFmpeg kapandı: ${roomId} (code=${code})`);
-    });
-
-    recordingState.process = ffmpegProcess;
-    recordingState.uploadTimer = setInterval(() => {
-      this._uploadClosedSegments(roomId, false).catch((err) => {
-        logger.warn(`Segment upload döngüsü başarısız: ${roomId} → ${err.message}`);
-      });
-    }, 2000);
     this.activeRecordings.set(roomId, recordingState);
+    await this._spawnFFmpeg(roomId, recordingState, ffmpegArgs);
 
     logger.info(`Segmentli recording başladı: ${roomId} → ${segmentPattern}`);
   }
 
   /**
    * Recording'i durdurur, FFmpeg'i kapatır ve S3'e yükler.
+   *
+   * IMPORTANT: stopRecording sırasında retry timer'ı da temizlenir.
    *
    * İdempotenttir:
    *   - Aktif recording yoksa, pending varsa onu temizler ve null döner.
@@ -311,6 +352,16 @@ class RecordingManager {
     if (recording.uploadTimer) {
       clearInterval(recording.uploadTimer);
       recording.uploadTimer = null;
+    }
+
+    if (recording.retryTimer) {
+      clearTimeout(recording.retryTimer);
+      recording.retryTimer = null;
+    }
+
+    if (recording.keyframeTimer) {
+      clearInterval(recording.keyframeTimer);
+      recording.keyframeTimer = null;
     }
 
     // Consumer'ları kapat
@@ -416,6 +467,86 @@ class RecordingManager {
     return String(second).padStart(6, '0');
   }
 
+  async _waitForConsumers(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async _spawnFFmpeg(roomId, recordingState, ffmpegArgs, isRetry = false) {
+    logger.info(`FFmpeg başlatılıyor${isRetry ? ' (RETRY)' : ''}: ffmpeg ${ffmpegArgs.join(' ')}`);
+
+    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    ffmpegProcess.stderr.on('data', (data) => {
+      logger.warn(`FFmpeg [${roomId}]: ${data.toString().trim()}`);
+    });
+
+    ffmpegProcess.on('error', (err) => {
+      logger.error(`FFmpeg hata: ${roomId}`, { error: err.message });
+    });
+
+    ffmpegProcess.on('close', (code) => {
+      logger.info(`FFmpeg kapandı: ${roomId} (code=${code})`);
+
+      // Eğer hata ile kapanırsa (özellikle ilk denemede SDP okuyamadığında code=1 olur)
+      // ve recording hala aktifse, bir kez daha daha uzun bir süre bekleyip retry at.
+      if (code !== 0 && code !== 255 && !isRetry && this.activeRecordings.has(roomId)) {
+        logger.warn(`FFmpeg hatalı kapandı (code=${code}), RTP akışı bekleniyor. 3 saniye sonra tekrar denenecek: ${roomId}`);
+        
+        if (recordingState.uploadTimer) {
+          clearInterval(recordingState.uploadTimer);
+          recordingState.uploadTimer = null;
+        }
+
+        recordingState.retryTimer = setTimeout(() => {
+          if (this.activeRecordings.has(roomId)) {
+            this._spawnFFmpeg(roomId, recordingState, ffmpegArgs, true).catch(err => {
+              logger.error(`FFmpeg retry hatası: ${roomId} -> ${err.message}`);
+            });
+          }
+        }, 3000);
+      }
+    });
+
+    recordingState.process = ffmpegProcess;
+    
+    // Timer zaten varsa temizle (retry güvenliği)
+    if (recordingState.uploadTimer) {
+      clearInterval(recordingState.uploadTimer);
+    }
+
+    recordingState.uploadTimer = setInterval(() => {
+      this._uploadClosedSegments(roomId, false, recordingState).catch((err) => {
+        logger.warn(`Segment upload döngüsü başarısız: ${roomId} → ${err.message}`);
+      });
+    }, 2000);
+
+    this._startKeyframeRequests(roomId, recordingState);
+  }
+
+  _startKeyframeRequests(roomId, recordingState) {
+    if (!recordingState.videoConsumers || recordingState.videoConsumers.length === 0) {
+      return;
+    }
+    if (recordingState.keyframeTimer) {
+      clearInterval(recordingState.keyframeTimer);
+    }
+
+    const request = () => {
+      for (const consumer of recordingState.videoConsumers) {
+        if (!consumer.closed && typeof consumer.requestKeyFrame === 'function') {
+          consumer.requestKeyFrame().catch((err) => {
+            logger.debug(`Keyframe istenemedi: ${roomId} → ${err.message}`);
+          });
+        }
+      }
+    };
+
+    setTimeout(request, 300);
+    recordingState.keyframeTimer = setInterval(request, 2000);
+  }
+
   /**
    * FFmpeg için SDP dosyası oluşturur.
    * @param {object|null} audio Audio transport bilgisi
@@ -431,12 +562,14 @@ class RecordingManager {
 
     if (audio) {
       sdp += `m=audio ${audio.port} RTP/AVP ${audio.payloadType}\n`;
+      sdp += `a=rtcp:${audio.rtcpPort} IN IP4 127.0.0.1\n`;
       sdp += `a=rtpmap:${audio.payloadType} opus/${audio.clockRate}/${audio.channels}\n`;
       sdp += `a=fmtp:${audio.payloadType} minptime=10;useinbandfec=1\n`;
     }
 
     if (video) {
       sdp += `m=video ${video.port} RTP/AVP ${video.payloadType}\n`;
+      sdp += `a=rtcp:${video.rtcpPort} IN IP4 127.0.0.1\n`;
       sdp += `a=rtpmap:${video.payloadType} VP8/${video.clockRate}\n`;
     }
 

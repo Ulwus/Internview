@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:table_calendar/table_calendar.dart';
 import '../../../core/presentation/widgets/neo/neo_background.dart';
 import '../../../core/presentation/widgets/penkrowd/animated_action_button.dart';
+import '../../../core/presentation/widgets/penkrowd/radial_stat_gauge.dart';
+import '../../../core/presentation/widgets/penkrowd/section_card.dart';
 import '../../../core/presentation/widgets/penkrowd/skeleton_container.dart';
 
 import '../../../core/models/booking_models.dart';
@@ -11,16 +12,19 @@ import '../../../core/models/domain_models.dart';
 import '../../../core/network/api_exception.dart';
 import '../../booking/data/booking_remote_data_source.dart';
 import '../../expert/presentation/expert_list_screen.dart';
+import 'booking_slot_picker.dart';
 
-final _openSlotsForExpertProvider = FutureProvider.family.autoDispose<List<SlotDto>, String>((ref, expertUserId) {
-  return ref.watch(bookingRemoteProvider).listOpenSlots(expertUserId);
-});
+final _openSlotsForExpertProvider = FutureProvider.family
+    .autoDispose<List<SlotDto>, String>((ref, expertUserId) {
+      return ref.watch(bookingRemoteProvider).listOpenSlots(expertUserId);
+    });
 
 class BookingCreateScreen extends ConsumerStatefulWidget {
   const BookingCreateScreen({super.key});
 
   @override
-  ConsumerState<BookingCreateScreen> createState() => _BookingCreateScreenState();
+  ConsumerState<BookingCreateScreen> createState() =>
+      _BookingCreateScreenState();
 }
 
 class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
@@ -31,266 +35,233 @@ class _BookingCreateScreenState extends ConsumerState<BookingCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final expertUserId = _selectedExpert?.userId;
-    final slotsAsync = expertUserId == null ? null : ref.watch(_openSlotsForExpertProvider(expertUserId));
-    final openSlots = (slotsAsync?.valueOrNull ?? const <SlotDto>[]).where((s) => !s.booked).toList();
-
-    final openSlotsByDay = <DateTime, List<SlotDto>>{};
-    for (final s in openSlots) {
-      final st = s.startTime.toLocal();
-      final k = DateTime(st.year, st.month, st.day);
-      (openSlotsByDay[k] ??= []).add(s);
-    }
-    for (final list in openSlotsByDay.values) {
-      list.sort((a, b) => a.startTime.compareTo(b.startTime));
-    }
+    final slotsAsync = expertUserId == null
+        ? null
+        : ref.watch(_openSlotsForExpertProvider(expertUserId));
+    final slots = slotsAsync?.valueOrNull ?? const <SlotDto>[];
 
     return NeoBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: const Text('Randevu Ekranı'),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.zero,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black, width: 3),
-                  boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4))],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16.0),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00E5FF), // Cyan header
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                        border: Border(bottom: BorderSide(color: Colors.black, width: 3)),
-                      ),
-                      child: const Text(
-                        'Randevu Al',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: InkWell(
-                        onTap: () async {
-                          final picked = await showModalBottomSheet<ExpertSummary>(
-                            context: context,
-                            showDragHandle: true,
-                            isScrollControlled: true,
-                            builder: (context) => const _ExpertPickerSheet(),
-                          );
-                          if (!mounted) return;
-                          if (picked == null) return;
-                          setState(() {
-                            _selectedExpert = picked;
-                            _selectedDay = null;
-                            _selectedSlot = null;
-                          });
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black, width: 3),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4)),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _selectedExpert == null
-                                      ? 'Uzman seçin'
-                                      : '${_selectedExpert!.firstName} ${_selectedExpert!.lastName}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const Icon(Icons.arrow_drop_down, color: Colors.black),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFD600),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.black, width: 3),
-                          boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4))],
-                        ),
-                        child: IgnorePointer(
-                          ignoring: _selectedExpert == null,
-                          child: Opacity(
-                            opacity: _selectedExpert == null ? 0.45 : 1,
-                            child: TableCalendar(
-                              firstDay: DateTime.now().subtract(const Duration(days: 1)),
-                              lastDay: DateTime.now().add(const Duration(days: 45)),
-                              focusedDay: _focusedDay,
-                              enabledDayPredicate: (day) {
-                                final k = DateTime(day.year, day.month, day.day);
-                                return openSlotsByDay.containsKey(k);
-                              },
-                              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                              onDaySelected: (selectedDay, focusedDay) {
-                                setState(() {
-                                  _selectedDay = selectedDay;
-                                  _focusedDay = focusedDay;
-                                  _selectedSlot = null;
-                                });
-                              },
-                              headerStyle: const HeaderStyle(
-                                formatButtonVisible: false,
-                                titleCentered: true,
-                                titleTextStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              calendarStyle: const CalendarStyle(
-                                selectedDecoration: BoxDecoration(
-                                  color: Colors.black,
-                                  shape: BoxShape.circle,
-                                ),
-                                todayDecoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.fromBorderSide(BorderSide(color: Colors.black, width: 2)),
-                                ),
-                                todayTextStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_selectedDay != null) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Builder(
-                          builder: (context) {
-                            final k = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
-                            final daySlots = openSlotsByDay[k] ?? const <SlotDto>[];
-                            if (daySlots.isEmpty) {
-                              return const Text('Bu gün için uygun seans yok.');
-                            }
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 3.2,
-                              ),
-                              itemCount: daySlots.length,
-                              itemBuilder: (context, index) {
-                                final s = daySlots[index];
-                                final isSelected = _selectedSlot?.id == s.id;
-                                final st = s.startTime.toLocal();
-                                final label =
-                                    '${st.hour.toString().padLeft(2, '0')}:${st.minute.toString().padLeft(2, '0')}';
-                                return GestureDetector(
-                                  onTap: () => setState(() => _selectedSlot = s),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: isSelected ? Colors.black : const Color(0xFFFF5252),
-                                      border: Border.all(color: Colors.black, width: 2),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      label,
-                                      style: TextStyle(
-                                        color: isSelected ? Colors.white : Colors.black,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ],
-                ),
+        appBar: AppBar(title: const Text('Randevu Al')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            SectionCard(
+              title: 'Uzman',
+              subtitle: 'Randevu almak istediğin mülakatçıyı seç',
+              color: const Color(0xFF00E5FF),
+              child: _ExpertSelectCard(
+                expert: _selectedExpert,
+                onTap: _pickExpert,
               ),
-              const SizedBox(height: 24),
-              AnimatedActionButton(
-                onTap: () async {
-                  if (_selectedExpert == null || _selectedSlot == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Önce uzman ve seans seçin')),
-                    );
-                    return;
-                  }
-                  try {
-                    final b = await ref.read(bookingRemoteProvider).createBooking(
-                          expertId: _selectedExpert!.userId,
-                          slotId: _selectedSlot!.id,
-                        );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Talep gönderildi (uzman onayı bekleniyor)')),
+            ),
+            const SizedBox(height: 16),
+            BookingSlotPicker(
+              slots: slots,
+              loading: slotsAsync?.isLoading ?? false,
+              enabled: _selectedExpert != null,
+              focusedDay: _focusedDay,
+              selectedDay: _selectedDay,
+              selectedSlot: _selectedSlot,
+              onPageChanged: (day) => setState(() => _focusedDay = day),
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                  _selectedSlot = null;
+                });
+              },
+              onSlotSelected: (slot) => setState(() => _selectedSlot = slot),
+            ),
+            const SizedBox(height: 24),
+            AnimatedActionButton(
+              onTap: () async {
+                if (_selectedExpert == null || _selectedSlot == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Önce uzman ve seans seçin')),
+                  );
+                  return;
+                }
+                try {
+                  final b = await ref
+                      .read(bookingRemoteProvider)
+                      .createBooking(
+                        expertId: _selectedExpert!.userId,
+                        slotId: _selectedSlot!.id,
                       );
-                      context.push('/booking/${b.id}');
-                    }
-                  } on ApiException catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-                    }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Talep gönderildi (uzman onayı bekleniyor)',
+                        ),
+                      ),
+                    );
+                    context.push('/booking/${b.id}');
                   }
-                },
-                width: double.infinity,
-                height: 48,
-                color: const Color(0xFF00E5FF),
-                pressedColor: const Color(0xFF00E5FF),
-                borderColor: Colors.black,
-                borderWidth: 3,
-                borderRadius: 14,
-                shadowOffset: const Offset(4, 4),
-                child: Center(
-                  child: Text(
-                    'Randevu Oluştur',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      color: (_selectedExpert != null && _selectedSlot != null) ? Colors.black : Colors.black54,
-                    ),
+                } on ApiException catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(e.message)));
+                  }
+                }
+              },
+              width: double.infinity,
+              height: 48,
+              color: const Color(0xFF00E5FF),
+              pressedColor: const Color(0xFF00E5FF),
+              borderColor: Colors.black,
+              borderWidth: 3,
+              borderRadius: 14,
+              shadowOffset: const Offset(4, 4),
+              child: Center(
+                child: Text(
+                  'Randevu Oluştur',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    color: (_selectedExpert != null && _selectedSlot != null)
+                        ? Colors.black
+                        : Colors.black54,
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _pickExpert() async {
+    final picked = await showModalBottomSheet<ExpertSummary>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => const _ExpertPickerSheet(),
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _selectedExpert = picked;
+      _selectedDay = null;
+      _selectedSlot = null;
+    });
+  }
+}
+
+class _ExpertSelectCard extends StatelessWidget {
+  const _ExpertSelectCard({required this.expert, required this.onTap});
+
+  final ExpertSummary? expert;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = expert;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.black, width: 3),
+          boxShadow: const [
+            BoxShadow(color: Colors.black, blurRadius: 0, offset: Offset(4, 4)),
+          ],
+        ),
+        child: selected == null
+            ? const Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Color(0xFFFFD600),
+                    child: Icon(Icons.person_search, color: Colors.black),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Uzman seç',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.arrow_drop_down, color: Colors.black),
+                ],
+              )
+            : Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: const Color(0xFFFFD600),
+                    backgroundImage:
+                        (selected.avatarUrl != null &&
+                            selected.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(selected.avatarUrl!)
+                        : null,
+                    child:
+                        (selected.avatarUrl == null ||
+                            selected.avatarUrl!.isEmpty)
+                        ? Text(
+                            selected.firstName.isNotEmpty
+                                ? selected.firstName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${selected.firstName} ${selected.lastName}'.trim(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if ((selected.headline ?? selected.company ?? '')
+                            .trim()
+                            .isNotEmpty)
+                          Text(
+                            (selected.headline ?? selected.company ?? '')
+                                .trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black.withValues(alpha: 0.65),
+                            ),
+                          ),
+                        if (selected.hourlyRate != null)
+                          Text(
+                            '${selected.hourlyRate} ${selected.currency ?? ''}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                      ],
+                    ),
+                  ),
+                  RadialStatGauge(
+                    value: selected.averageRating,
+                    max: 10,
+                    label: 'Puan',
+                    size: 58,
+                    accentColor: const Color(0xFFB388FF),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -332,7 +303,9 @@ class _ExpertPickerSheetState extends ConsumerState<_ExpertPickerSheet> {
     if (!_hasNext) return;
     setState(() => _loading = true);
     try {
-      final res = await ref.read(expertRemoteProvider).searchExperts(
+      final res = await ref
+          .read(expertRemoteProvider)
+          .searchExperts(
             search: _search.text.trim().isEmpty ? null : _search.text.trim(),
             page: _page,
           );
@@ -393,7 +366,9 @@ class _ExpertPickerSheetState extends ConsumerState<_ExpertPickerSheet> {
             Flexible(
               child: NotificationListener<ScrollNotification>(
                 onNotification: (n) {
-                  if (n.metrics.pixels > n.metrics.maxScrollExtent - 200) _load();
+                  if (n.metrics.pixels > n.metrics.maxScrollExtent - 200) {
+                    _load();
+                  }
                   return false;
                 },
                 child: ListView.builder(
@@ -403,16 +378,28 @@ class _ExpertPickerSheetState extends ConsumerState<_ExpertPickerSheet> {
                     if (i >= _items.length) {
                       return const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(child: SkeletonContainer(width: 140, height: 14, borderRadius: 8)),
+                        child: Center(
+                          child: SkeletonContainer(
+                            width: 140,
+                            height: 14,
+                            borderRadius: 8,
+                          ),
+                        ),
                       );
                     }
                     final e = _items[i];
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundImage:
-                            (e.avatarUrl != null && e.avatarUrl!.isNotEmpty) ? NetworkImage(e.avatarUrl!) : null,
+                            (e.avatarUrl != null && e.avatarUrl!.isNotEmpty)
+                            ? NetworkImage(e.avatarUrl!)
+                            : null,
                         child: (e.avatarUrl == null || e.avatarUrl!.isEmpty)
-                            ? Text(e.firstName.isNotEmpty ? e.firstName[0].toUpperCase() : '?')
+                            ? Text(
+                                e.firstName.isNotEmpty
+                                    ? e.firstName[0].toUpperCase()
+                                    : '?',
+                              )
                             : null,
                       ),
                       title: Text('${e.firstName} ${e.lastName}'),

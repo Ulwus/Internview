@@ -1,3 +1,5 @@
+name: internview
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -147,6 +149,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INTERVIEW_SERVICE_URL: http://interview-service:8083
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
     ports:
       - "8084:8084"
@@ -154,6 +157,7 @@ services:
       - postgres
       - redis
       - kafka
+      - interview-service
     networks:
       - ${DOCKER_NETWORK:-internview-net}
 
@@ -187,6 +191,7 @@ services:
       TURN_SECRET: ${TURN_SECRET:-internview_turn_secret}
       TURN_HOST: coturn
       MEDIA_SERVICE_URL: http://media-service:${MEDIA_SERVER_PORT:-3000}
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-}
     ports:
       - "8083:8083"
     depends_on:
@@ -206,7 +211,7 @@ services:
       PORT: ${MEDIA_SERVER_PORT:-3000}
       LOG_LEVEL: ${MEDIA_SERVER_LOG_LEVEL:-info}
       MEDIASOUP_LISTEN_IP: 0.0.0.0
-      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-127.0.0.1}
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-}
       MEDIASOUP_MIN_PORT: ${MEDIASOUP_MIN_PORT:-40000}
       MEDIASOUP_MAX_PORT: ${MEDIASOUP_MAX_PORT:-40099}
       MEDIASOUP_LOG_LEVEL: ${MEDIASOUP_LOG_LEVEL:-warn}
@@ -222,6 +227,7 @@ services:
     ports:
       - "${MEDIA_SERVER_PORT:-3000}:${MEDIA_SERVER_PORT:-3000}"
       - "${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}:${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}/udp"
+      - "${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}:${MEDIASOUP_MIN_PORT:-40000}-${MEDIASOUP_MAX_PORT:-40099}/tcp"
     depends_on:
       - minio
     networks:
@@ -239,8 +245,17 @@ services:
       INTERVIEW_EVENTS_TOPIC: interview-events
       ANALYSIS_EVENTS_TOPIC: analysis-events
       ENABLE_KAFKA_CONSUMER: "true"
-      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-tr}
+      WHISPER_BACKEND: ${WHISPER_BACKEND:-whisper_cpp}
+      WHISPER_CPP_SERVER_URL: ${AI_ANALYSIS_WHISPER_CPP_SERVER_URL:-http://whisper-cpp-service:8787}
+      PRELOAD_WHISPER_MODEL: ${PRELOAD_WHISPER_MODEL:-false}
       WHISPER_DOWNLOAD_ROOT: /models/whisper
+      AI_ANALYSIS_WORK_DIR: /work
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      ENABLE_LLM_EVALUATION: ${ENABLE_LLM_EVALUATION:-true}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
@@ -252,11 +267,46 @@ services:
       - "8000:8000"
     volumes:
       - ${WHISPER_CACHE_HOST_DIR:-/Volumes/M2SSD/internview/whisper-cache}:/models/whisper
+      - ${AI_ANALYSIS_WORK_HOST_DIR:-../.local/share/ai-analysis-work}:/work
     depends_on:
-      - postgres
-      - kafka
-      - minio
-      - consul
+      postgres:
+        condition: service_started
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+      consul:
+        condition: service_started
+      whisper-cpp-service:
+        condition: service_healthy
+    networks:
+      - ${DOCKER_NETWORK:-internview-net}
+    restart: unless-stopped
+
+  whisper-cpp-service:
+    build:
+      context: ..
+      dockerfile: backend/whisper-cpp-service/Dockerfile
+      args:
+        WHISPER_CPP_REF: ${WHISPER_CPP_REF:-master}
+        WHISPER_CPP_MODEL_FILE: ${WHISPER_CPP_MODEL_FILE:-ggml-large-v3-turbo-q5_0.bin}
+    container_name: internview-whisper-cpp-service
+    environment:
+      WHISPER_CPP_SERVER_HOST: 0.0.0.0
+      WHISPER_CPP_SERVER_PORT: 8787
+      AI_ANALYSIS_WORK_HOST_DIR: /work
+      AI_ANALYSIS_WORK_CONTAINER_DIR: /work
+    ports:
+      - "${WHISPER_CPP_SERVER_PORT:-8787}:8787"
+    volumes:
+      - ${AI_ANALYSIS_WORK_HOST_DIR:-../.local/share/ai-analysis-work}:/work
+      - ${WHISPER_CPP_MODEL_HOST_DIR:-../.local/tools/whisper.cpp/models}:/models/whisper-cpp:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
     networks:
       - ${DOCKER_NETWORK:-internview-net}
     restart: unless-stopped

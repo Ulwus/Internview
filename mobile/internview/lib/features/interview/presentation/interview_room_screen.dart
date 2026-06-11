@@ -48,6 +48,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
   Timer? _countdownArmTimer;
   Timer? _countdownTicker;
   Timer? _autoCloseTimer;
+  Timer? _sfuSyncTimer;
   final ValueNotifier<int?> _remainingSeconds = ValueNotifier<int?>(null);
   bool _closing = false;
   bool _finishRequested = false;
@@ -163,6 +164,13 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     return false;
   }
 
+  String _formatRemainingMinutes(int? seconds) {
+    final value = seconds ?? 0;
+    if (value <= 0) return '0 dk';
+    if (value < 60) return '<1 dk';
+    return '${(value / 60).ceil()} dk';
+  }
+
   Future<void> _init() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
@@ -245,6 +253,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
         await _onSignal(msg, myId);
       });
       unawaited(_syncSfuConsumers());
+      _startSfuSyncTimer();
 
       if (mounted) setState(() {});
     } catch (e) {
@@ -255,6 +264,19 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
         ).showSnackBar(SnackBar(content: Text('$e')));
       }
     }
+  }
+
+  void _startSfuSyncTimer() {
+    _sfuSyncTimer?.cancel();
+    var attempts = 0;
+    _sfuSyncTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+      attempts += 1;
+      if (_cleanedUp || attempts > 40) {
+        timer.cancel();
+        return;
+      }
+      unawaited(_syncSfuConsumers());
+    });
   }
 
   void _armCountdownAndAutoClose() {
@@ -359,9 +381,8 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
         _sig?.sendJson(finishDoneOut(targetUserId: _remoteUserId!));
       }
       if (!mounted) return;
-      await _cleanup(pop: false);
-      if (!mounted) return;
       context.go('/interview/${widget.bookingId}/result');
+      unawaited(_cleanup(pop: false));
       return;
     }
     if (msg is FinishRejectMessage) {
@@ -381,9 +402,8 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
       // Candidate closes when expert completes.
       if (_isExpert) return;
       if (!mounted) return;
-      await _cleanup(pop: false);
-      if (!mounted) return;
       context.go('/interview/${widget.bookingId}/result');
+      unawaited(_cleanup(pop: false));
       return;
     }
   }
@@ -473,6 +493,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
     _countdownArmTimer?.cancel();
     _countdownTicker?.cancel();
     _autoCloseTimer?.cancel();
+    _sfuSyncTimer?.cancel();
     await _sub?.cancel();
     await _remoteStreamSub?.cancel();
     await _sig?.dispose();
@@ -717,7 +738,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
                           valueListenable: _remainingSeconds,
                           builder: (context, seconds, _) {
                             return Text(
-                              'Kalan Süre: ${seconds ?? 0}s',
+                              'Kalan Süre: ${_formatRemainingMinutes(seconds)}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 16,
@@ -818,7 +839,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
                                 child: RTCVideoView(
                                   _remoteRenderer,
                                   objectFit: RTCVideoViewObjectFit
-                                      .RTCVideoViewObjectFitCover,
+                                      .RTCVideoViewObjectFitContain,
                                 ),
                               ),
                             ),
@@ -856,7 +877,7 @@ class _InterviewRoomScreenState extends ConsumerState<InterviewRoomScreen> {
                                   child: RTCVideoView(
                                     _localRenderer,
                                     objectFit: RTCVideoViewObjectFit
-                                        .RTCVideoViewObjectFitCover,
+                                        .RTCVideoViewObjectFitContain,
                                   ),
                                 ),
                               ),

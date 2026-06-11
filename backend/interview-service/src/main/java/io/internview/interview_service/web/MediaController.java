@@ -1,7 +1,9 @@
 package io.internview.interview_service.web;
 
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import io.internview.interview_service.domain.InterviewSession;
 import io.internview.interview_service.media.MediaServiceClient;
@@ -46,6 +50,9 @@ public class MediaController {
 	private final MediaServiceClient mediaServiceClient;
 	private final InterviewSessionRepository sessionRepository;
 
+	@Value("${internview.media.announced-ip:}")
+	private String configuredAnnouncedIp;
+
 	// ── Router Capabilities ──────────────────────────
 
 	/**
@@ -71,11 +78,13 @@ public class MediaController {
 	@PostMapping("/transport")
 	public ResponseEntity<CreateTransportResponse> createTransport(
 		@PathVariable UUID sessionId,
-		@AuthenticationPrincipal Jwt jwt
+		@AuthenticationPrincipal Jwt jwt,
+		@RequestBody(required = false) Map<String, Object> body,
+		HttpServletRequest request
 	) {
 		InterviewSession session = this.assertParticipant(sessionId, jwt);
 		CreateTransportResponse response = this.mediaServiceClient
-			.createTransport(session.getId().toString());
+			.createTransport(session.getId().toString(), clientAnnouncedIp(body, request));
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}
 
@@ -203,5 +212,74 @@ public class MediaController {
 				HttpStatus.FORBIDDEN, "Bu oturuma erişim yetkiniz yok.");
 		}
 		return session;
+	}
+
+	private String clientVisibleHost(HttpServletRequest request) {
+		String host = firstHeaderValue(request.getHeader("X-Forwarded-Host"));
+		if (host == null || host.isBlank()) {
+			host = request.getHeader("Host");
+		}
+		if (host == null || host.isBlank()) {
+			return null;
+		}
+
+		host = host.trim();
+		if (host.startsWith("[")) {
+			int end = host.indexOf(']');
+			return end > 0 ? host.substring(1, end) : null;
+		}
+
+		int colon = host.indexOf(':');
+		if (colon > 0) {
+			host = host.substring(0, colon);
+		}
+
+		if (!host.matches("[A-Za-z0-9.-]+")) {
+			return null;
+		}
+		return host;
+	}
+
+	private String clientAnnouncedIp(Map<String, Object> body, HttpServletRequest request) {
+		String configured = cleanHost(this.configuredAnnouncedIp);
+		if (configured != null) {
+			return configured;
+		}
+		if (body != null) {
+			Object value = body.get("announcedIp");
+			if (value instanceof String announcedIp && !announcedIp.isBlank()) {
+				String clean = cleanHost(announcedIp);
+				if (clean != null) {
+					return clean;
+				}
+			}
+		}
+		return clientVisibleHost(request);
+	}
+
+	private String cleanHost(String host) {
+		host = host.trim();
+		if (host.startsWith("[")) {
+			int end = host.indexOf(']');
+			return end > 0 ? host.substring(1, end) : null;
+		}
+
+		int colon = host.indexOf(':');
+		if (colon > 0) {
+			host = host.substring(0, colon);
+		}
+
+		if (!host.matches("[A-Za-z0-9.-]+")) {
+			return null;
+		}
+		return host;
+	}
+
+	private String firstHeaderValue(String value) {
+		if (value == null) {
+			return null;
+		}
+		int comma = value.indexOf(',');
+		return comma >= 0 ? value.substring(0, comma).trim() : value.trim();
 	}
 }

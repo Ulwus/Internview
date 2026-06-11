@@ -22,14 +22,15 @@ class TransportManager {
    * @param {string} roomId
    * @returns {Promise<object>} Transport parametreleri (client'a gönderilecek)
    */
-  async createWebRtcTransport(roomId) {
+  async createWebRtcTransport(roomId, announcedIp) {
     const router = mediasoupManager.getRouter(roomId);
     if (!router) {
       throw new Error(`Room bulunamadı: ${roomId}`);
     }
 
+    const listenIps = this._webRtcListenIps(announcedIp);
     const transport = await router.createWebRtcTransport({
-      listenIps: config.mediasoup.webRtcTransport.listenIps,
+      listenIps,
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
@@ -63,7 +64,7 @@ class TransportManager {
       this.transports.delete(transport.id);
     });
 
-    logger.info(`WebRtcTransport oluşturuldu: ${transport.id} (room=${roomId})`);
+    logger.info(`WebRtcTransport oluşturuldu: ${transport.id} (room=${roomId}, announcedIp=${listenIps[0].announcedIp || 'none'})`);
 
     return {
       id: transport.id,
@@ -71,6 +72,27 @@ class TransportManager {
       iceCandidates: transport.iceCandidates,
       dtlsParameters: transport.dtlsParameters,
     };
+  }
+
+  _webRtcListenIps(announcedIp) {
+    const cleanAnnouncedIp = this._cleanAnnouncedIp(announcedIp);
+    return config.mediasoup.webRtcTransport.listenIps.map((listenIp) => {
+      if (!cleanAnnouncedIp) {
+        return listenIp;
+      }
+      return { ...listenIp, announcedIp: cleanAnnouncedIp };
+    });
+  }
+
+  _cleanAnnouncedIp(value) {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > 253) {
+      return null;
+    }
+    return /^[A-Za-z0-9.-]+$/.test(trimmed) ? trimmed : null;
   }
 
   /**
